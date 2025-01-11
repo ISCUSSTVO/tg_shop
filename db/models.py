@@ -42,9 +42,10 @@ class Banner(Base):
     image: Mapped[str] = mapped_column(String(150), nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=True)
 
+##################Промокоды на скидоны################################################################
 class Promokodes(Base):
     __tablename__ = 'promocodes'
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     promocode: Mapped[str] = mapped_column(String(15), unique=True)
-    discount: Mapped[str] = mapped_column(Integer(), nullable=False)
+    discount: Mapped[int] = mapped_column(Integer(), nullable=False)

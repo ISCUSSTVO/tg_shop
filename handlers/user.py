@@ -6,15 +6,17 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import CommandStart
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.engine import AsyncSessionLocal
-from db.orm_query import (orm_add_user, 
+from db.orm_query import (
+    orm_add_user, 
     orm_chek_promo, 
-    orm_chek_users, 
-    orm_get_banner, 
-    orm_select_tovar)
+    orm_get_promocode_by_name, 
+    orm_get_user_by_userid, 
+    orm_get_banner
+    )
 
-from handlers.menu_proccesing import (game_catalog, 
+from handlers.menu_proccesing import (promocodes_catalog, 
     get_menu_content, 
-    zaglushka)
+    payment)
 
 from kbds.inline import (Menucallback, 
     get_keyboard,  
@@ -32,7 +34,7 @@ async def start(message:types.Message):
         user_id = message.from_user.id
         banner = await orm_get_banner(session, "start")
 
-        if not await orm_chek_users(session, user_id):
+        if not await orm_get_user_by_userid(session, user_id):
             await orm_add_user(session, user_id)  
 
         await message.answer_photo(photo=banner.image, caption=banner.description, reply_markup=get_keyboard(btns={
@@ -85,20 +87,20 @@ async def user_menu(callback: types.CallbackQuery, callback_data: Menucallback, 
     await callback.message.edit_media(media=media, reply_markup=reply_markup)
     await callback.answer()
 
-@user_router.callback_query(F.data.startswith('show_cat_'))
+@user_router.callback_query(F.data.startswith('show_category_'))
 async def process_show_cat(callback_query: types.CallbackQuery, session: AsyncSession):
     # Извлекаем категорию из колбек-данных
     game_cat = callback_query.data.split('_')[-1]  # Получаем название категории
-    media, kbds = await game_catalog(session, game_cat, level=2)
+    media, kbds = await promocodes_catalog(session, game_cat, level=2)
     # Отправляем сообщение пользователю
     await callback_query.message.edit_media(media=media, reply_markup=kbds)
     await callback_query.answer()
 
-@user_router.callback_query(F.data.startswith('show_'))
+@user_router.callback_query(F.data.startswith('show_promocode_'))
 async def process_show_game(callback_query: types.CallbackQuery, session: AsyncSession):
     # Извлекаем категорию из колбек-данных
     tovar = callback_query.data.split('_')[-1]  # Получаем название категории
-    media, kbds = await zaglushka(session, tovar, level=3)
+    media, kbds = await payment(session, tovar, level=3)
     # Отправляем сообщение пользователю
     await callback_query.message.edit_media(media=media, reply_markup=kbds)
     await callback_query.answer()
@@ -106,7 +108,7 @@ async def process_show_game(callback_query: types.CallbackQuery, session: AsyncS
 @user_router.callback_query(F.data.startswith('select_'))
 async def buy(callback:types.CallbackQuery, session: AsyncSession):
     promo = callback.data.split('_')[-1]
-    promocode = await orm_select_tovar(session, promo)
+    promocode = await orm_get_promocode_by_name(session, promo)
     prices = [LabeledPrice(label=promocode.name, amount=promocode.price * 100)] 
     data = {
         "user_id": callback.from_user.id,
@@ -141,17 +143,17 @@ async def process_pre_checkout_query(pre_checkout_query: types.PreCheckoutQuery,
 @user_router.callback_query(F.data.startswith('msg_'))
 async def send_message_to_adm(callback: types.CallbackQuery, bot: Bot, session: AsyncSession):   
     mssg = callback.data.split('_')[-1]
-    tovar = await orm_select_tovar(session, mssg)
+    tovar = await orm_get_promocode_by_name(session, mssg)
     
     msg_key = (tovar.id, callback.from_user.full_name)
     if msg_key in sent_msg:
-        await callback.message.answer('Обратитесь к администратору с чеком об оплате\n\nhttps://t.me/civqw\nhttps://t.me/ardyn_lucis')
+        await callback.message.answer('Обратитесь к администратору с чеком об оплате\n\nhttps://t.me/civqw')
         await callback.answer()
         return
 
     await bot.send_message('-4672084883', f'{tovar.name}\nПромокод: {tovar.promocode}\nЦена: {tovar.price}\n\nhttps://t.me/{callback.from_user.username}')
     sent_msg.add(msg_key)
-    await callback.message.answer('Обратитесь к администратору с чеком об оплате\n\nhttps://t.me/civqw\nhttps://t.me/ardyn_lucis')
+    await callback.message.answer('Обратитесь к администратору с чеком об оплате\n\nhttps://t.me/civqw')
     await callback.answer()
 
 

@@ -2,18 +2,17 @@ from aiogram import types, Router, F,Bot
 from aiogram.filters import StateFilter, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from db.models import Spam
-from db.orm_query import (orm_change_account, 
+from db.orm_query import (orm_get_promocode_by_name, 
     orm_change_banner_image, 
-    orm_check_catalog, 
-    orm_chek_users1, 
-    orm_chng_spam, 
-    orm_del_account, 
+    orm_get_catalog, 
+    orm_get_users, 
+    orm_delete_promocode, 
     orm_get_info_pages, 
     orm_get_spam, 
     orm_update_catalog, 
     orm_add_message_spam,
-    orm_add_Promocode)
+    orm_add_Promocode,
+    orm_del_spam)
 from sqlalchemy.ext.asyncio import AsyncSession
 from filters.chat_filter import ChatTypeFilter, IsAdmin
 from kbds.inline import  get_callback_btns
@@ -52,17 +51,14 @@ async def admin_commands_msg(message: types.Message):
 ####################################Рассылка####################################
 class CreateMessage(StatesGroup):
     msgg = State()
-    texts = {
-    'CreateMessage.msgg':    'Введи сообщение заново',
-    }
+    digit = State()
 
 @admin_router.callback_query(F.data == ('spamrassilka'))
 async def choose_variant(callback : types.CallbackQuery):
     await callback.message.answer(
                 'Выбирай', reply_markup= get_callback_btns(btns={
                 'Создать сообщение': 'create_msg',
-                'Изменить сообщение':   'redo_msg',
-                'Запустить рассылку': 'do_rassilka',
+                'Запустить':   'choose_msg',
                 'Назад':    'admin'
                 }))
     await callback.message.delete()
@@ -76,44 +72,65 @@ async def create_msg(callback : types.CallbackQuery, state: FSMContext):
 async def createa_spam(message:types.Message,session:AsyncSession):
     await orm_add_message_spam(session, message.text)
 
-    await message.answer(f"Сообщение принято\n{message}",reply_markup= get_callback_btns(btns={
+    await message.answer(f"Сообщение принято\n{message.text}",reply_markup= get_callback_btns(btns={
         "В меню":   "admin",
         "Запуск":   'do_rassilka'
     }))
     await message.delete()
 
-@admin_router.callback_query(F.data == ('redo_msg'))
-async def redo_msg(callback: types.CallbackQuery, state: FSMContext):    
-    await callback.message.answer('Введи смску заново')
-    await state.set_state(CreateMessage.msgg)
+@admin_router.callback_query(F.data == ('choose_msg'))
+async def redo_msg(callback: types.CallbackQuery, session: AsyncSession):    
+    spam_messages = await orm_get_spam(session)
+    if not spam_messages:
+        await callback.message.answer('Сообщений нет',reply_markup= get_callback_btns(btns={
+        "В меню":   "admin"
+        }))
+    else:
+        for sms in spam_messages:
+            await callback.message.answer(sms, reply_markup= get_callback_btns(btns={
+                'запустить': 'digit',
+                'удалить': f'del_msg_{sms}'
+            }))
+    await callback.message.delete()
 
-@admin_router.message(CreateMessage.msgg)
-async def rez_msg(message: types.Message, session:AsyncSession, state:FSMContext):   
-    op = message.text 
-    result = await orm_chng_spam(session, op)
-    for qwe in result:
-        print(qwe)
-        await message.answer(f'смска принята\n{op}')
-        await state.clear()
+
+@admin_router.callback_query(F.data.startswith('del_msg_'))
+async def del_msg(callback: types.CallbackQuery, session: AsyncSession):
+    sms = callback.data.split('_')[-1]
+    await orm_del_spam(session, sms)
+    await session.commit()
+    await callback.message.answer('Сообщение удалено')
+    await callback.answer()
 
 
-@admin_router.callback_query(F.data == ('do_rassilka'))
-async def read_msg(callback: types.CallbackQuery, session: AsyncSession, bot:Bot):
-    users = await orm_chek_users1(session)
-    msg = await orm_get_spam(session)
+@admin_router.callback_query(F.data == ('digit'))
+async def digit(callback: types.CallbackQuery, state: FSMContext):
+    await callback.message.answer('Введите цифру')
+    await state.set_state(CreateMessage.digit)
+    await callback.message.delete()
+
+@admin_router.message(CreateMessage.digit)
+async def read_msg(message: types.Message, session: AsyncSession, bot: Bot):
+    users = await orm_get_users(session)
+    msg_list = await orm_get_spam(session)
     
-    if msg:
+    if msg_list:
+        msg = msg_list[0] if isinstance(msg_list, list) else msg_list 
         for user_id in users:
-            if user_id != callback.from_user.id:  # Проверка, чтобы не отправлять себе
+            if user_id != message.from_user.id and user_id != 1020323448 and user_id != 5157996423:  # Проверка, чтобы не отправлять себе
                 try:
-                    await bot.send_message(user_id, msg)
+                    for i in range(int(message.text)):
+                        await bot.send_message(user_id, msg)
                 except Exception as e:
                     print(f"Ошибка при отправке сообщения пользователю {user_id}: {e}")
-        await callback.message.answer("Рассылка завершена.")
-        await callback.answer()
+        await message.answer("Рассылка завершена.",reply_markup= get_callback_btns(btns={
+        "В меню":   "admin"
+        }))
+
     else:
-        await callback.message.answer("Нет доступных сообщений для рассылки.")
-        await callback.answer()
+        await message.answer("Нет доступных сообщений для рассылки.",reply_markup= get_callback_btns(btns={
+        "В меню":   "admin"
+        }))
 
 
 ################# Микро FSM для загрузки/изменения баннеров ############################
@@ -217,18 +234,19 @@ async def add_categories(message: types.Message, state: FSMContext, session: Asy
 
 @admin_router.callback_query(F.data == 'delItem')
 async def show_all_accounts(cb: types.CallbackQuery, session: AsyncSession):
-    account_list = await orm_check_catalog(session)
+    account_list = await orm_get_catalog(session)
 
     if account_list:
         for account in account_list:
-            desc_name = account.promocode
+            descname = account.promocode
             account_info = (
-                f"Код: {desc_name}\n"
-                f"Цена: {account.price}"
+                f"Код: {descname}\n"
+                f"Цена: {account.price}\n"
+                f"Категории: {account.category}"
             )
             reply_markup =  get_callback_btns(btns={
-                f'Изменить {desc_name}': f'chgacc_{desc_name}',
-                f'Удалить {desc_name}': f'delacc_{desc_name}'
+                f'Изменить {descname}': f'chgacc_{descname}',
+                f'Удалить {descname}': f'delacc_{descname}'
             })
             await cb.message.answer(account_info, reply_markup=reply_markup)
             
@@ -242,18 +260,17 @@ async def show_all_accounts(cb: types.CallbackQuery, session: AsyncSession):
 
 ##################Удаление аккаунта ################################################################
 @admin_router.callback_query(F.data.startswith('delacc_'))
-async def delete_acc(cb: types.CallbackQuery, session: AsyncSession):
-    desc_name = cb.data.split('_')[1]
-    await orm_del_account(session, desc_name)
-    await session.commit()
-    await cb.message.answer(f'Код {desc_name} удалён.')
-    await cb.message.delete()
+async def delete_game(callback: types.CallbackQuery, session: AsyncSession):
+    game_name = callback.data.split('_')[1]
+    await orm_delete_promocode(session, game_name)
+    await callback.message.answer(f'Аккаунт {game_name} удалён.')
+    await callback.message.delete()
 
 ###СМЕНА ИНФОРМАЦИИ ОБ АКАУНТЕ###
 @admin_router.callback_query(F.data.startswith('chgacc_'))
 async def chng_acc(cb: types.CallbackQuery, session: AsyncSession):
     account_name = cb.data.split('_')[-1]
-    account = await orm_change_account(session, account_name)
+    account = await orm_get_promocode_by_name(session, account_name)
     
     await cb.message.answer(
         f"Вы выбрали код: {account.name}\n"

@@ -1,4 +1,4 @@
-from aiogram.utils.formatting import Bold, as_marked_section
+from aiogram.utils.formatting import as_marked_section
 description_for_info_pages = {
     "main": "Воспользуйтесь кнопками",
     "catalog": "Список всех аккаунтов",
