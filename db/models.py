@@ -5,6 +5,7 @@ class Base(DeclarativeBase):
     created: Mapped[DateTime] = mapped_column(DateTime, default = func.now())
     updated: Mapped[DateTime] = mapped_column(DateTime, default = func.now() , onupdate= func.now())
 
+
 ##################Дтаблица админов################################################################
 class Admins(Base):
     __tablename__ = 'admins'
@@ -32,6 +33,7 @@ class Catalog(Base):
     promocode: Mapped[str] = mapped_column(String(70), unique=True, nullable=False)
     category: Mapped[str] = mapped_column(String(30), nullable=False)
     price: Mapped[int]  = mapped_column(Integer)
+    discount: Mapped[int] = mapped_column(Integer)
 
 ##################таблица банеры ################################################################
 class Banner(Base):
@@ -49,3 +51,11 @@ class Promokodes(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     promocode: Mapped[str] = mapped_column(String(15), unique=True)
     discount: Mapped[int] = mapped_column(Integer(), nullable=False)
+
+######################таблица использования промокодов#############################################################
+class PromocodeUsage(Base): 
+    __tablename__ = 'promocode_usage'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    promocode: Mapped[str] = mapped_column(String(15), nullable=False)
+    user_id: Mapped[int] = mapped_column(String, nullable=False)

@@ -109,7 +109,13 @@ async def process_show_game(callback_query: types.CallbackQuery, session: AsyncS
 async def buy(callback:types.CallbackQuery, session: AsyncSession):
     promo = callback.data.split('_')[-1]
     promocode = await orm_get_promocode_by_name(session, promo)
-    prices = [LabeledPrice(label=promocode.name, amount=promocode.price * 100)] 
+    if promocode.discount != 0:
+        price = promocode.price - promocode.price * promocode.discount // 100
+        prices = [LabeledPrice(label=promocode.name, amount=price * 100)] 
+        await callback.message.answer(f'Цена: {prices}₽')
+    else:
+        prices = [LabeledPrice(label=promocode.name, amount=promocode.price * 100)] 
+        await callback.message.answer(f'Цена: {prices}₽')
     data = {
         "user_id": callback.from_user.id,
         "service": "offline_activation",
