@@ -1,6 +1,6 @@
 from sqlalchemy import delete, distinct, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from db.models import Catalog, Admins, Banner, Promokodes, Spam, Users
+from db.models import Catalog, Admins, Banner, PromocodeUsage, Promokodes, Spam, Users
 
 ############### Работа с баннерами (информационными страницами) ###############
 
@@ -80,7 +80,6 @@ async def orm_get_promocode_by_name(session: AsyncSession, promocode: str):
     query = select(Catalog).where(Catalog.name == promocode)
     result = await session.execute(query)
     account = result.scalars().first()
-    print(f"DEBUG: orm_get_promocode_by_name - account: {account}")  # Отладочное сообщение
     return account
 
 
@@ -88,7 +87,6 @@ async def orm_delete_promocode(session: AsyncSession, desc_name: str):
     query = delete(Catalog).where(Catalog.name == desc_name)
     result = await session.execute(query)
     await session.commit()
-    print(f"DEBUG: orm_delete_promocode - rowcount: {result.rowcount}")  # Отладочное сообщение
     return result.rowcount
 
 
@@ -130,6 +128,28 @@ async def orm_chek_promo(session: AsyncSession, promo: str):
     query = select(Promokodes).where(Promokodes.promocode == promo)
     result = await session.execute(query)
     return result.scalars().all()
+
+async def orm_add_Promocode_discount(session: AsyncSession, promocode: str, discount: int, usage: int):
+    add_in_promo = Promokodes(promocode=promocode, discount=discount, usage=usage)
+    session.add(add_in_promo)
+    await session.commit()
+    return promocode, discount, usage
+
+async def  orm_use_promocode(session: AsyncSession,user_id, promocode: str):
+    add_in_promo = PromocodeUsage(user_id = user_id, promocode=promocode)
+    session.add(add_in_promo)
+    await session.commit()
+
+async def orm_get_promocode_usage(session: AsyncSession, user_id):
+    query = select(PromocodeUsage).where(PromocodeUsage.user_id == user_id)
+    result = await session.execute(query)
+    return  result.scalars().first()
+
+async def orm_get_promocode(session: AsyncSession, name):
+    query = select(Promokodes).where(Promokodes.promocode == name)
+    result = await session.execute(query)
+    return result.scalars().first()
+
 
 
 ################################### Работа с админами ####################################

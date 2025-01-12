@@ -3,6 +3,7 @@ from aiogram.filters import StateFilter, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from db.orm_query import (
+    orm_add_Promocode_discount,
     orm_get_promocode_by_name,
     orm_change_banner_image,
     orm_get_catalog,
@@ -310,6 +311,53 @@ async def show_all_accounts(cb: types.CallbackQuery, session: AsyncSession):
             "Нет кодов", reply_markup=get_callback_btns(btns={"В меню": "admin"})
         )
 
+
+##################Удаление Работа со скидками##############################################
+class PlussDiscount(StatesGroup):
+    name = State()
+    discount = State()
+    usage = State()
+
+@admin_router.callback_query(F.data.startswith("promocode"))
+async def create_promocode(callback: types.CallbackQuery, state:FSMContext):
+    await callback.message.answer("Введите промокод")
+    await state.set_state(PlussDiscount.name)
+    await callback.message.delete()
+
+@admin_router.message(PlussDiscount.name)
+async def add_name_promo(message: types.Message, state: FSMContext):
+    await state.update_data(name=message.text)
+    await message.answer("Введите скидку без знака %")
+    await state.set_state(PlussDiscount.discount)
+
+@admin_router.message(PlussDiscount.discount)
+async def add_discount_promo(message: types.Message, state: FSMContext, session: AsyncSession):
+    await state.update_data(discount=message.text)
+    await message.answer("Введите количество использований")
+    await state.set_state(PlussDiscount.usage)
+    
+
+@admin_router.message(PlussDiscount.usage) 
+async def add_usage_promo(message: types.Message, state: FSMContext, session: AsyncSession):
+    await state.update_data(usage=message.text)
+    data = await state.get_data()
+    discount = data["discount"]
+    promocode = data["name"]
+    usage  = data["usage"]
+
+    name, discounts, usage = await orm_add_Promocode_discount(session, promocode, discount, usage)
+    await state.clear()
+
+    # Отправляем изображение вместе с текстом
+    await message.answer(
+        f"Промокод добавлен\nНазвание: {name}\nСкидка: {discounts}\n {usage} %",
+        reply_markup=get_callback_btns(
+            btns={
+                "Ещё код": "promocode",
+                "Админ меню": "admin"
+                }
+        ),
+    )
 
 ##################Удаление аккаунта ################################################################
 @admin_router.callback_query(F.data.startswith("delacc_"))

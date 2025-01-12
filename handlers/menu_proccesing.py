@@ -1,10 +1,13 @@
+import dis
 from aiogram.types import InputMediaPhoto
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.orm_query import (
     orm_get_banner,
     orm_get_category_catalog,
+    orm_get_promocode,
     orm_get_promocode_by_category,
     orm_get_promocode_by_name,
+    orm_get_promocode_usage,
 )
 from kbds.inline import Menucallback, get_user_main_btns, get_callback_btns
 
@@ -48,10 +51,10 @@ async def promocodes_catalog(session: AsyncSession, game_cat: str, level):
     return image, kbds
 
 
-async def payment(session: AsyncSession, tovar: str, level):
+async def payment(session: AsyncSession, tovar: str, user_id, level):
     banner = await orm_get_banner(session, "catalog")
     product = await orm_get_promocode_by_name(session, tovar)
-    product_price = product.price - product.price * product.discount // 100
+    
     if product is None:
         image = InputMediaPhoto(media=banner.image, caption="Промокод не найден")
         kbds = get_callback_btns(
@@ -60,12 +63,29 @@ async def payment(session: AsyncSession, tovar: str, level):
             }
         )
         return image, kbds
-    if product.discount != 0:
-        image = InputMediaPhoto(media=banner.image, caption=(f"{product.name}\nЦена: ~{product.price}₽~ {product_price}₽"),parse_mode="MarkdownV2")
-    else:
-        image = InputMediaPhoto(media=banner.image, caption=(f"{product.name}\nЦена: {product.price}₽"),parse_mode="MarkdownV2")
 
     
+    user_promocode_usage = await orm_get_promocode_usage(session, user_id)
+    if user_promocode_usage != None:
+        promocode_discount = await orm_get_promocode(session, user_promocode_usage.promocode)
+    else:
+        promocode_discount = None
+
+    # Применяем скидку продукта
+    product_price = product.price - (product.price * product.discount // 100)
+    
+    # Если у пользователя есть активный промокод, применяем дополнительную скидку
+    if promocode_discount:
+        product_price = product_price - (product_price * promocode_discount.discount // 100)
+
+    # Формируем описание продукта с учетом скидок
+    if product.discount != 0 or promocode_discount:
+        caption = f"{product.name}\nЦена: ~{product.price}₽~ {product_price}₽"
+    else:
+        caption = f"{product.name}\nЦена: {product.price}₽"
+
+    image = InputMediaPhoto(media=banner.image, caption=caption, parse_mode="MarkdownV2")
+
     kbds = get_callback_btns(
         btns={
             "купить": f"select_{product.name}",
@@ -77,12 +97,16 @@ async def payment(session: AsyncSession, tovar: str, level):
     return image, kbds
 
 
+
+
+
 async def get_menu_content(
     session: AsyncSession,
     level: int,
     menu_name: str,
     game_cat: str = None,
     tovar: str = None,
+
 ):
     if level == 0:
         return await main(session=session, level=level, menu_name=menu_name)

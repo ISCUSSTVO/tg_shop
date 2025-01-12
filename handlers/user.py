@@ -11,7 +11,8 @@ from db.orm_query import (
     orm_chek_promo, 
     orm_get_promocode_by_name, 
     orm_get_user_by_userid, 
-    orm_get_banner
+    orm_get_banner,
+    orm_use_promocode
     )
 
 from handlers.menu_proccesing import (promocodes_catalog, 
@@ -100,7 +101,7 @@ async def process_show_cat(callback_query: types.CallbackQuery, session: AsyncSe
 async def process_show_game(callback_query: types.CallbackQuery, session: AsyncSession):
     # Извлекаем категорию из колбек-данных
     tovar = callback_query.data.split('_')[-1]  # Получаем название категории
-    media, kbds = await payment(session, tovar, level=3)
+    media, kbds = await payment(session, tovar,  callback_query.from_user.id, level=3)
     # Отправляем сообщение пользователю
     await callback_query.message.edit_media(media=media, reply_markup=kbds)
     await callback_query.answer()
@@ -189,7 +190,9 @@ async def get_promocode(message:types.Message, session: AsyncSession, state: FSM
     promo = message.text
     result = await orm_chek_promo(session, promo)
     if result:
+        await orm_use_promocode(session, message.from_user.id, promo)
         await message.answer('Промокод принят')
+
         await state.clear()
         return
     else:

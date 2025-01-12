@@ -49,8 +49,9 @@ class Promokodes(Base):
     __tablename__ = 'promocodes'
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    promocode: Mapped[str] = mapped_column(String(15), unique=True)
+    promocode: Mapped[str] = mapped_column(String(15), unique=False)
     discount: Mapped[int] = mapped_column(Integer(), nullable=False)
+    usage: Mapped[int] = mapped_column(Integer(), nullable=False)
 
 ######################таблица использования промокодов#############################################################
 class PromocodeUsage(Base): 
