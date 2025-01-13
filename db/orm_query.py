@@ -135,9 +135,26 @@ async def orm_add_Promocode_discount(session: AsyncSession, promocode: str, disc
     await session.commit()
     return promocode, discount, usage
 
-async def  orm_use_promocode(session: AsyncSession,user_id, promocode: str):
-    add_in_promo = PromocodeUsage(user_id = user_id, promocode=promocode)
+async def orm_use_promocode(session: AsyncSession, user_id: int, promo: str):
+    add_in_promo = PromocodeUsage(user_id=user_id, promocode=promo)
     session.add(add_in_promo)
+
+    query = select(Promokodes).where(Promokodes.promocode == promo)
+    result = await session.execute(query)
+    promocode = result.scalars().first()
+    # Уменьшаем количество использований промокода
+    if promocode.usage > 1:
+        update_query = (
+            update(Promokodes)
+            .where(Promokodes.promocode == promocode)
+            .values(usage=Promokodes.usage - 1)
+        )
+        await session.execute(update_query)
+    else:
+        delete_query = delete(Promokodes).where(Promokodes.promocode == promo)
+        await session.execute(delete_query)
+    
+    # Коммитим изменения
     await session.commit()
 
 async def orm_get_promocode_usage(session: AsyncSession, user_id):

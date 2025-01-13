@@ -1,3 +1,4 @@
+import asyncio
 import json
 from aiogram import Bot, types, Router, F
 from aiogram.types import InputMediaPhoto, LabeledPrice
@@ -9,7 +10,8 @@ from db.engine import AsyncSessionLocal
 from db.orm_query import (
     orm_add_user, 
     orm_chek_promo, 
-    orm_get_promocode_by_name, 
+    orm_get_promocode_by_name,
+    orm_get_promocode_usage, 
     orm_get_user_by_userid, 
     orm_get_banner,
     orm_use_promocode
@@ -171,7 +173,7 @@ class GetPromo(StatesGroup):
     Promo = State()
 
 @user_router.callback_query(F.data == ('promo'))
-async def chek_promocode(callback:types.CallbackQuery, state:FSMContext, session: AsyncSession, level = 3):
+async def chek_promocode(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession, level=3):
     banner = await orm_get_banner(session, "catalog")
     image = None
     if banner:
@@ -179,28 +181,49 @@ async def chek_promocode(callback:types.CallbackQuery, state:FSMContext, session
             media=banner.image,
             caption="\nВведите промокод"
         )
-    await callback.message.edit_media(media=image, reply_markup= get_callback_btns(btns={
-        'отмена':    Menucallback(level=level -2, menu_name='game_catalog').pack()
+    await callback.message.edit_media(media=image, reply_markup=get_callback_btns(btns={
+        'назад': Menucallback(level=level - 2, menu_name='game_catalog').pack()
     }))
     await state.set_state(GetPromo.Promo)
-    #await callback.message.delete()
+    await state.update_data(level=level, user_id=callback.from_user.id)
+    # await callback.message.delete()
 
 @user_router.message(GetPromo.Promo)
-async def get_promocode(message:types.Message, session: AsyncSession, state: FSMContext):
+async def get_promocode(message: types.Message, session: AsyncSession, state: FSMContext):
     promo = message.text
     result = await orm_chek_promo(session, promo)
-    if result:
-        await orm_use_promocode(session, message.from_user.id, promo)
-        await message.answer('Промокод принят')
+    res = await orm_get_promocode_usage(session, message.from_user.id)
+    data = await state.get_data()
+    level = data.get('level', 3)
+    user_id = data.get('user_id', message.from_user.id)
 
-        await state.clear()
-        return
+    if res:
+        caption = f'Вы уже использовали промокод\nВаш промокод: {res.promocode}'
+    elif result:
+        await orm_use_promocode(session, message.from_user.id, promo)
+        caption = 'Промокод принят'
     else:
-        await message.answer('Нет такого промокода', reply_markup= get_callback_btns(btns={
-            'В меню':   'menu'
-        }))
-        await state.clear()
-        return
+        caption = 'Нет такого промокода'
+
+    banner = await orm_get_banner(session, "catalog")
+    image = InputMediaPhoto(
+        media=banner.image,
+        caption=caption
+    )
+    await message.answer_photo(photo=image.media, caption=image.caption, reply_markup=get_callback_btns(btns={
+        'назад': Menucallback(level=level - 2, menu_name='game_catalog').pack()
+    }))
+    await state.clear()
+    await message.delete()
+    await asyncio.sleep(5)
+    await message.delete()
+
+    if result and not res:
+        media, kbds = await payment(session, promo, user_id, level)
+        await message.answer_photo(photo=media.media, caption=media.caption, reply_markup=kbds)
+
+
+
 
 @user_router.message()
 async def null_message(message: types.Message):

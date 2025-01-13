@@ -331,7 +331,7 @@ async def add_name_promo(message: types.Message, state: FSMContext):
     await state.set_state(PlussDiscount.discount)
 
 @admin_router.message(PlussDiscount.discount)
-async def add_discount_promo(message: types.Message, state: FSMContext, session: AsyncSession):
+async def add_discount_promo(message: types.Message, state: FSMContext):
     await state.update_data(discount=message.text)
     await message.answer("Введите количество использований")
     await state.set_state(PlussDiscount.usage)
@@ -350,7 +350,7 @@ async def add_usage_promo(message: types.Message, state: FSMContext, session: As
 
     # Отправляем изображение вместе с текстом
     await message.answer(
-        f"Промокод добавлен\nНазвание: {name}\nСкидка: {discounts}\n {usage} %",
+        f"Промокод добавлен\nНазвание: {name}\nСкидка: {discounts}%\nИспользований: {usage}",
         reply_markup=get_callback_btns(
             btns={
                 "Ещё код": "promocode",

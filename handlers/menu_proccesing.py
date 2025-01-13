@@ -51,7 +51,7 @@ async def promocodes_catalog(session: AsyncSession, game_cat: str, level):
     return image, kbds
 
 
-async def payment(session: AsyncSession, tovar: str, user_id, level):
+async def payment(session: AsyncSession, tovar: str, user_id: int, level: int):
     banner = await orm_get_banner(session, "catalog")
     product = await orm_get_promocode_by_name(session, tovar)
     
@@ -64,10 +64,9 @@ async def payment(session: AsyncSession, tovar: str, user_id, level):
         )
         return image, kbds
 
-    
     user_promocode_usage = await orm_get_promocode_usage(session, user_id)
-    if user_promocode_usage != None:
-        promocode_discount = await orm_get_promocode(session, user_promocode_usage.promocode)
+    if user_promocode_usage is not None:
+        promocode_discount = await orm_get_promocode_by_name(session, user_promocode_usage.promocode)
     else:
         promocode_discount = None
 
@@ -99,11 +98,11 @@ async def payment(session: AsyncSession, tovar: str, user_id, level):
 
 
 
-
 async def get_menu_content(
     session: AsyncSession,
     level: int,
     menu_name: str,
+    user_id: int,
     game_cat: str = None,
     tovar: str = None,
 
@@ -118,4 +117,4 @@ async def get_menu_content(
         return await promocodes_catalog(session, game_cat, level)
 
     elif level == 3:
-        return await payment(session, tovar, level)
+        return await payment(session, tovar, user_id,  level = level)
