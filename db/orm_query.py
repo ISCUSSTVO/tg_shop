@@ -1,6 +1,6 @@
 from sqlalchemy import delete, distinct, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from db.models import Catalog, Admins, Banner, PromocodeUsage, Promokodes, Spam, Users
+from db.models import Catalog, Admins, Banner, PromocodeUsage, Promokodes, Spam, Users, Cart
 
 ############### Работа с баннерами (информационными страницами) ###############
 
@@ -39,7 +39,34 @@ async def orm_get_info_pages(session: AsyncSession):
     return result.scalars().all()
 
 
+
+############### Работа с корзиной ##############
+async def orm_add_to_cart(session: AsyncSession,  product_name: str, user_id, prod_price):
+    obj = Cart(
+        user_id = user_id,
+        product_name=product_name,
+        price = prod_price
+        )
+    session.add(obj)
+    await session.commit()
+
+async def orm_chek_cart(session: AsyncSession, user_id):
+    query = select(Cart).where(Cart.user_id == user_id)
+    result = await session.execute(query)
+    return result.scalars().all()
+
+async def orm_chek_user_cart(session: AsyncSession, user_id):
+    query = select(Cart).where(Cart.user_id == user_id)
+    result = await session.execute(query)
+    return result.scalar()
+
+async def orm_clear_cart(session: AsyncSession, user_id):
+    query = delete(Cart).where(Cart.user_id == user_id)
+    await session.execute(query)
+    await session.commit()
+
 ############### Работа с каталогами ##############
+
 
 
 async def orm_add_Promocode(session: AsyncSession, data: dict):
@@ -112,7 +139,7 @@ async def orm_add_user(session: AsyncSession, user_id: str):
 async def orm_get_user_by_userid(session: AsyncSession, useid: str):
     query = select(Users).where(Users.user_id == useid)
     result = await session.execute(query)
-    return result.scalars().all()
+    return result.scalar()
 
 
 async def orm_get_users(session: AsyncSession):

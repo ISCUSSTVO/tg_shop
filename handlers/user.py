@@ -5,11 +5,16 @@ from aiogram.types import InputMediaPhoto, LabeledPrice
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import CommandStart
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.engine import AsyncSessionLocal
 from db.orm_query import (
+    orm_add_to_cart,
+    orm_chek_cart,
     orm_add_user, 
-    orm_chek_promo, 
+    orm_chek_promo,
+    orm_chek_user_cart,
+    orm_clear_cart, 
     orm_get_promocode_by_name,
     orm_get_promocode_usage, 
     orm_get_user_by_userid, 
@@ -17,9 +22,11 @@ from db.orm_query import (
     orm_use_promocode
     )
 
-from handlers.menu_proccesing import (promocodes_catalog, 
+from handlers.menu_proccesing import (
+    promocodes_catalog, 
     get_menu_content, 
-    payment)
+    payment,
+    cart)
 
 from kbds.inline import (Menucallback, 
     get_keyboard,  
@@ -42,8 +49,9 @@ async def start(message:types.Message):
 
         await message.answer_photo(photo=banner.image, caption=banner.description, reply_markup=get_keyboard(btns={
             "📜Главное меню",
-            "🤓отзывы",
-            "📺тг канал",
+            "🤓Отзывы",
+            "📺Тг канал",
+            "🛒Корзина"
         },sizes=(1,2)) )
 
 @user_router.message(F.text.lower().contains('тг '))
@@ -58,6 +66,17 @@ async def Otzivi(message: types.Message):
         "Отзывы": "https://t.me/promokodiciq"
     }))
 
+@user_router.message(F.text.lower().contains('корзина'))
+async def go_to_cart (message:types.Message, session: AsyncSession):
+    q = message.from_user.id
+    image, kbds = await cart(session, q)
+    await message.answer_photo(photo=image.media, caption=image.caption, reply_markup=kbds)
+
+
+
+
+
+
 @user_router.callback_query(F.data == 'menu')
 @user_router.message(F.text.lower().contains('menu') | F.text.lower().contains('меню'))
 async def menu_handler(message: types.Message | types.CallbackQuery, session: AsyncSession):
@@ -66,7 +85,7 @@ async def menu_handler(message: types.Message | types.CallbackQuery, session: As
     if is_callback:
         await message.answer("Загрузка главного меню...") 
 
-    media, reply_markup = await get_menu_content(session, level=0, menu_name="main")
+    media, reply_markup = await get_menu_content(session, level=0, menu_name="main", user_id=1)
 
     if isinstance(media, InputMediaPhoto):
         if is_callback:
@@ -80,7 +99,8 @@ async def user_menu(callback: types.CallbackQuery, callback_data: Menucallback, 
     result = await get_menu_content(
         session,
         level=callback_data.level,
-        menu_name=callback_data.menu_name
+        menu_name=callback_data.menu_name,
+        user_id=1
     )
     if result is None:
         await callback.answer("Не удалось получить данные.", show_alert=True)
@@ -89,6 +109,32 @@ async def user_menu(callback: types.CallbackQuery, callback_data: Menucallback, 
     media, reply_markup = result
     await callback.message.edit_media(media=media, reply_markup=reply_markup)
     await callback.answer()
+
+@user_router.callback_query(F.data.startswith('add_cart_'))
+async def add_cart(callback_query: types.CallbackQuery, session: AsyncSession):
+    tovar = callback_query.data.split('_')[-2]
+    price = callback_query.data.split('_')[-1]
+    car = await orm_chek_cart(session, callback_query.from_user.id)
+    list = [i.product_name for i in car] if car else []
+    if tovar not in list:
+        await orm_add_to_cart(session, tovar, callback_query.from_user.id,price)
+        await callback_query.answer("Товар добавлен в корзину")
+    else:
+        await callback_query.answer("Товар уже в корзине")
+        return
+        
+
+@user_router.callback_query(F.data == 'clean_cart')
+async def cl_cart(callback: types.CallbackQuery, session: AsyncSession):
+    car = await orm_chek_user_cart(session, callback.from_user.id)
+    if car is None:
+        await callback.answer("Корзина пуста")
+        return
+    else:
+        await orm_clear_cart(session, callback.from_user.id)
+        await callback.answer("Корзина очищена")
+        await callback.message.delete()
+        
 
 @user_router.callback_query(F.data.startswith('show_category_'))
 async def process_show_cat(callback_query: types.CallbackQuery, session: AsyncSession):

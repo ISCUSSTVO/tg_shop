@@ -1,13 +1,17 @@
 import dis
+from aiogram import F
 from aiogram.types import InputMediaPhoto
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.orm_query import (
+    orm_chek_cart,
+    orm_chek_user_cart,
     orm_get_banner,
     orm_get_category_catalog,
-    orm_get_promocode,
+    #orm_get_promocode,
     orm_get_promocode_by_category,
     orm_get_promocode_by_name,
     orm_get_promocode_usage,
+    orm_get_user_by_userid,
 )
 from kbds.inline import Menucallback, get_user_main_btns, get_callback_btns
 
@@ -37,6 +41,9 @@ async def category(session):
     return image, kbds
 
 
+
+
+
 async def promocodes_catalog(session: AsyncSession, game_cat: str, level):
     banner = await orm_get_banner(session, "catalog")
     promocodes = await orm_get_promocode_by_category(session, game_cat)
@@ -54,7 +61,9 @@ async def promocodes_catalog(session: AsyncSession, game_cat: str, level):
 async def payment(session: AsyncSession, tovar: str, user_id: int, level: int):
     banner = await orm_get_banner(session, "catalog")
     product = await orm_get_promocode_by_name(session, tovar)
-    
+    user_pr = await orm_chek_user_cart(session, user_id)
+    user = await orm_chek_cart(session, user_id)
+    list = ''.join([i.product_name for i in user])
     if product is None:
         image = InputMediaPhoto(media=banner.image, caption="Промокод не найден")
         kbds = get_callback_btns(
@@ -84,16 +93,54 @@ async def payment(session: AsyncSession, tovar: str, user_id: int, level: int):
         caption = f"{product.name}\nЦена: {product.price}₽"
 
     image = InputMediaPhoto(media=banner.image, caption=caption, parse_mode="MarkdownV2")
-
-    kbds = get_callback_btns(
-        btns={
-            "купить": f"select_{product.name}",
-            "Есть промокод?": "promo",
-            "Назад": Menucallback(level=level - 2, menu_name="game_catalog").pack(),
-        }
-    )
+    if  user is None or product.name in list:
+        kbds = get_callback_btns(
+            btns={
+                "купить": f"select_{product.name}",
+                "Есть промокод?": "promo",
+                "Назад": Menucallback(level=level - 2, menu_name="game_catalog").pack(),
+            }
+        )
+    else:
+        kbds = get_callback_btns(
+            btns={
+                "купить": f"select_{product.name}",
+                "Есть промокод?": "promo",
+                "Добавить в корзину": f'add_cart_{product.name}_{product_price}',
+                "Назад": Menucallback(level=level - 2, menu_name="game_catalog").pack(),
+            }
+        )
 
     return image, kbds
+
+
+
+async def cart(session, user_id):
+    banner = await orm_get_banner(session, "cart")
+    user = await orm_chek_cart(session, user_id)
+    if user:
+        products_info = "\n".join([f"{item.product_name} - {item.price}₽" for item in user])
+        caption = f"Корзина:\n{products_info}"
+        price = sum([item.price for item in user])
+        print('qwe',price)
+        kbds = get_callback_btns(
+        btns={
+            "Оплатить": f"select_payment_{price}",
+            "Очистить корзину": "clean_cart",
+            "назад": Menucallback(level=0, menu_name="main").pack()
+        }
+    )
+    else:
+        caption = "Корзина пуста"
+        kbds = get_callback_btns(
+            btns={
+                "назад": Menucallback(level=0, menu_name="main").pack()
+            }
+        )
+    image = InputMediaPhoto(media=banner.image, caption=caption)
+    return image, kbds
+
+
 
 
 

@@ -18,7 +18,7 @@ from handlers.admin import admin_router
 
 
 bot = Bot(token=os.getenv("TOKEN"))
-bot.my_admin_list = ["civqw", "ardyn_lucis"]
+bot.my_admin_list = ["chivdoto", "ardyn_lucis"]
 
 dp = Dispatcher()
 

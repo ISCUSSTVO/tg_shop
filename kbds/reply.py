@@ -11,7 +11,7 @@ def get_keyboard(
     sizes: tuple[int] = (2,),
 ):
 
-    keyboard = ReplyKeyboardBuilder()q
+    keyboard = ReplyKeyboardBuilder()
 
     for index, text in enumerate(btns, start=0):
         
