@@ -65,24 +65,42 @@ async def orm_clear_cart(session: AsyncSession, user_id):
     await session.execute(query)
     await session.commit()
 
-############### Работа с каталогами ##############
-
-
-
-async def orm_add_Promocode(session: AsyncSession, data: dict):
-    obj = Catalog(
-        name=data["name"],
-        category=data["category"],
-        promocode=data["promocode"],
-        price=data["price"],
-        discount=data["discount"],
-    )
-    session.add(obj)
-    name = data["name"]
-    promocode = data["promocode"]
-    price = data["price"]
+async def orm_clear_tovar_on_cart(session: AsyncSession, tovar):
+    query = delete(Cart).where(Cart.product_name == tovar)
+    await session.execute(query)
     await session.commit()
-    return name, promocode,price
+
+############### Работа с каталогами ##############
+async def orm_add_Promocode(session: AsyncSession, data: dict):
+    chek_promocode = await orm_get_promocode_by_name(session, data["name"])
+    
+    if chek_promocode:
+        query = update(Catalog).where(Catalog.name == data["name"]).values(
+            quantity=Catalog.quantity + 1,
+            price=data["price"],
+            discount=data["discount"]
+        )
+        await session.execute(query)
+    else:
+        obj = Catalog(
+            name=data["name"],
+            category=data["category"],
+            promocode=data["promocode"],
+            price=data["price"],
+            discount=data["discount"],
+            quantity=1
+        )
+        session.add(obj)
+    
+    await session.commit()
+    return data["name"], data["promocode"], data["price"]
+
+
+async def orm_minus_quant(session: AsyncSession, promocode: str):
+    query = (update(Catalog).where(Catalog.name == promocode).values(quantity= Catalog.quantity - 1))
+    await session.execute(query)
+    await session.commit()
+    
 
 
 async def orm_get_catalog(session: AsyncSession):

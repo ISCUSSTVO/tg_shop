@@ -19,7 +19,8 @@ from db.orm_query import (
     orm_get_promocode_usage, 
     orm_get_user_by_userid, 
     orm_get_banner,
-    orm_use_promocode
+    orm_use_promocode,
+    orm_minus_quant
     )
 
 from handlers.menu_proccesing import (
@@ -115,9 +116,17 @@ async def add_cart(callback_query: types.CallbackQuery, session: AsyncSession):
     tovar = callback_query.data.split('_')[-2]
     price = callback_query.data.split('_')[-1]
     car = await orm_chek_cart(session, callback_query.from_user.id)
+    promo = await orm_get_promocode_by_name(session, tovar)
+    
+    if promo.quantity == 0:
+        await callback_query.answer("Товара нет в наличии")
+        return
+    
+    await orm_minus_quant(session, tovar)
+    
     list = [i.product_name for i in car] if car else []
     if tovar not in list:
-        await orm_add_to_cart(session, tovar, callback_query.from_user.id,price)
+        await orm_add_to_cart(session, tovar, callback_query.from_user.id, price)
         await callback_query.answer("Товар добавлен в корзину")
     else:
         await callback_query.answer("Товар уже в корзине")

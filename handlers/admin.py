@@ -241,13 +241,20 @@ async def add_account(callback: types.CallbackQuery, state: FSMContext):
 
 
 @admin_router.message(PlussAccount.name)
-async def add_game_name(message: types.Message, state: FSMContext):
+async def add_game_name(message: types.Message, state: FSMContext,session: AsyncSession):
     await state.update_data(name=message.text)
-    await message.answer("Введи промокод")
-    await state.set_state(PlussAccount.promocode)
+    data = {"name": message.text,"category": "some_category"}
+    chek_promocode = await orm_get_promocode_by_name(session, message.text)
+    if chek_promocode:
+        await message.answer("Хотите изменить код?", reply_markup=get_callback_btns(btns={
+            "да": "next", 
+            "нет": await orm_add_Promocode(session, data["name"])}))
+        
+        #await message.answer("Введи промокод")
+        #await state.set_state(PlussAccount.promocode)
 
 
-@admin_router.message(PlussAccount.promocode)
+@admin_router.message(PlussAccount.promocode, F.data == ("next"))
 async def add_promo(message: types.Message, state: FSMContext):
     await state.update_data(promocode=message.text)
     await message.answer("Введи цену")

@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.orm_query import (
     orm_chek_cart,
     orm_chek_user_cart,
+    orm_clear_tovar_on_cart,
     orm_get_banner,
     orm_get_category_catalog,
     #orm_get_promocode,
@@ -116,17 +117,29 @@ async def payment(session: AsyncSession, tovar: str, user_id: int, level: int):
 
 
 async def cart(session, user_id):
+    s=  1
     banner = await orm_get_banner(session, "cart")
+    cart = await orm_chek_user_cart(session, user_id)
     user = await orm_chek_cart(session, user_id)
-    if user:
-        products_info = "\n".join([f"{item.product_name} - {item.price}₽" for item in user])
-        caption = f"Корзина:\n{products_info}"
+    promo = await orm_get_promocode_by_name(session, cart.product_name)
+    if cart:
+        #products_info = "\n".join([f"{item.product_name} - {item.price}₽" for item in user])
+        
+        caption = f"{promo.category}\n{promo.name} \nКоличество: {s} штука \nИтоговая цена - {cart.price}₽"
         price = sum([item.price for item in user])
         print('qwe',price)
+
+
+
+
+
+
         kbds = get_callback_btns(
         btns={
+            "+1": f"add_cart_{promo.name}_{promo.price}",
+            "-1":await orm_clear_tovar_on_cart(session, promo.name) if s == 1 else s-1,
             "Оплатить": f"select_payment_{price}",
-            "Очистить корзину": "clean_cart",
+            "очистить корзину": "clean_cart",
             "назад": Menucallback(level=0, menu_name="main").pack()
         }
     )
