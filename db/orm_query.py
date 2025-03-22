@@ -43,19 +43,18 @@ async def orm_get_info_pages(session: AsyncSession):
 
 ############### Работа с корзиной ##############
 async def orm_add_to_cart(session: AsyncSession, product_name: str, user_id: int, price: int):
-    async with session.begin():
-        tovar = await orm_get_promocode_by_name(session, product_name)
-        query = select(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name)
-        cart = await session.execute(query)
-        cart = cart.scalar()
-        if cart:
-            cart.quantity += 1
-            if tovar.quantity == 0:
-                await orm_delete_promocode(session, product_name)
-        else:
-            session.add(Cart(user_id=user_id, product_name=product_name, quantity=1, price=price))
-            if tovar.quantity == 0:
-                await orm_delete_promocode(session, product_name)
+    tovar = await orm_get_promocode_by_name(session, product_name)
+    query = select(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name)
+    cart = await session.execute(query)
+    cart = cart.scalar()
+    if cart:
+        cart.quantity += 1
+        if tovar.quantity == 0:
+            await orm_delete_promocode(session, product_name)
+    else:
+        session.add(Cart(user_id=user_id, product_name=product_name, quantity=1, price=price))
+        if tovar.quantity == 0:
+            await orm_delete_promocode(session, product_name)
 
 
 async def orm_chek_cart(session: AsyncSession, user_id: int):

@@ -154,13 +154,9 @@ async def cart(session: AsyncSession, level: int, page: int, user_id: int):
         paginator = Paginator(carts, page=page, per_page=1)
         current_cart = paginator.get_page()[0]
         w = await orm_get_promocode_by_name(session, current_cart.product_name)
-        
-        if w is None:
-            caption = f"<strong>{current_cart.product_name}</strong>\nТовар не найден в каталоге."
-            cart_price = 0
-        else:
-            cart_price = round(current_cart.quantity * w.price, 2)
-            caption = f"<strong>{current_cart.product_name}</strong>\n{w.price}₽ x {current_cart.quantity} = {cart_price} руб.\nТовар {paginator.page} из {paginator.pages} в корзине."
+
+        cart_price = round(current_cart.quantity * w.price, 2)
+        caption = f"<strong>{current_cart.product_name}</strong>\n{w.price}₽ x {current_cart.quantity} = {cart_price} руб.\nТовар {paginator.page} из {paginator.pages} в корзине."
 
         image = InputMediaPhoto(
             media=banner.image,
