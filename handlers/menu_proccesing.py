@@ -184,6 +184,7 @@ async def cart(session: AsyncSession, level: int, page: int, user_id: int):
             level=level,
             page=page,
             pagination_btns=pagination_btns,
+            tovar = current_cart.product_name,
         )
         kbds.inline_keyboard.append([InlineKeyboardButton(text="Назад", callback_data=Menucallback(level=0, menu_name="main").pack())])
 

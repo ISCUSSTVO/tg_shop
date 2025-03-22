@@ -101,18 +101,19 @@ def get_user_cart(
     level: int,
     page: int | None,
     pagination_btns: dict | None,
+    tovar: str,
     sizes: tuple[int] = (3,)
 ):
     keyboard = InlineKeyboardBuilder()
     if page:
         keyboard.add(InlineKeyboardButton(text='Удалить',
-                    callback_data=f'delete_{level}_{page}'))
+                    callback_data=f'delete_{level}_{page}_{tovar}'))
         
         keyboard.add(InlineKeyboardButton(text='-1',
-                    callback_data=f'decrement_{level}_{page}'))
+                    callback_data=f'decrement_{level}_{page}_{tovar}'))
         
         keyboard.add(InlineKeyboardButton(text='+1',
-                    callback_data=f'increment_{level}_{page}'))
+                    callback_data=f'increment_{level}_{page}_{tovar}'))
 
         keyboard.adjust(*sizes)
         row = []

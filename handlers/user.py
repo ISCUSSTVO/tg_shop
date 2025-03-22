@@ -80,7 +80,8 @@ async def go_to_cart (message:types.Message, session: AsyncSession):
 async def cart_handly(callback: CallbackQuery, session: AsyncSession):
     data = callback.data.split('_')
     menu_name = data[0]
-    page = int(data[-1])
+    page = int(data[-2])
+    tovar = data[-1]
  
 
     current_cart = await orm_chek_user_cart(session, callback.from_user.id)
@@ -99,7 +100,7 @@ async def cart_handly(callback: CallbackQuery, session: AsyncSession):
         #await callback.message.edit_media(media=image, reply_markup=kbds)
 
     elif menu_name == "increment":
-        await orm_add_to_cart(session, current_cart.product_name, callback.from_user.id, current_cart.price)
+        await orm_add_to_cart(session, tovar, callback.from_user.id, current_cart.price)
         #image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
         #await callback.message.edit_media(media=image, reply_markup=kbds)
 
