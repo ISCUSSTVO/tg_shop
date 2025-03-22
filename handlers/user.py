@@ -71,7 +71,7 @@ async def Otzivi(message: types.Message):
         "Отзывы": "https://t.me/promokodiciq"
     }))
 
-@user_router.message(F.text.lower().contains('корзина'))
+@user_router.message(F.text.lower().contains('корзина') | F.text.lower().contains('cart'))
 async def go_to_cart (message:types.Message, session: AsyncSession):
     image, kbds = await cart(session, level=1, user_id=message.from_user.id, page=1)
     await message.answer_photo(photo=image.media, caption=image.caption, reply_markup=kbds)
@@ -81,25 +81,42 @@ async def cart_handly(callback: CallbackQuery, session: AsyncSession):
     data = callback.data.split('_')
     menu_name = data[0]
     page = int(data[-1])
+ 
+
     current_cart = await orm_chek_user_cart(session, callback.from_user.id)
-    q = await orm_get_promocode_by_name(session, current_cart.product_name)
     if menu_name == "delete":
         await orm_delete_from_cart(session, callback.from_user.id, current_cart.product_name)
         if page > 1:
             page -= 1
+        #image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
+        #await callback.message.edit_media(media=image, reply_markup=kbds)
     
     elif menu_name == "decrement":
         is_cart = await orm_reduce_service_in_cart(session, callback.from_user.id, current_cart.product_name)
         if page > 1 and not is_cart:
             page -= 1
+        #image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
+        #await callback.message.edit_media(media=image, reply_markup=kbds)
+
     elif menu_name == "increment":
-        await orm_add_to_cart(session, current_cart.product_name, callback.from_user.id, q.price)
+        await orm_add_to_cart(session, current_cart.product_name, callback.from_user.id, current_cart.price)
+        #image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
+        #await callback.message.edit_media(media=image, reply_markup=kbds)
+
     elif menu_name == "next":
         page += 1
+        #image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
+        #await callback.message.edit_media(media=image, reply_markup=kbds)
+
     elif menu_name == "previous":
         if page > 1:
             page -= 1
+        #image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
+        #await callback.message.edit_media(media=image, reply_markup=kbds)
+
     image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
+    #print(f"Image: {image}, Keyboards: {kbds}")
+
     await callback.message.edit_media(media=image, reply_markup=kbds)
 
 
@@ -153,19 +170,6 @@ async def add_cart(callback_query: types.CallbackQuery, session: AsyncSession):
         await callback_query.answer("Товар добавлен в корзину")
         await orm_minus_quant(session, data[-2])
 
-        
-
-@user_router.callback_query(F.data == 'clean_cart')
-async def cl_cart(callback: types.CallbackQuery, session: AsyncSession):
-    car = await orm_chek_user_cart(session, callback.from_user.id)
-    if car is None:
-        await callback.answer("Корзина пуста")
-        return
-    else:
-        await orm_clear_cart(session, callback.from_user.id)
-        await callback.answer("Корзина очищена")
-        await callback.message.delete()
-        
 
 @user_router.callback_query(F.data.startswith('show_category_'))
 async def process_show_cat(callback_query: types.CallbackQuery, session: AsyncSession):

@@ -45,16 +45,20 @@ async def orm_get_info_pages(session: AsyncSession):
 async def orm_add_to_cart(session: AsyncSession, product_name: str, user_id: int, price: int):
     tovar = await orm_get_promocode_by_name(session, product_name)
     query = select(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name)
-    cart = await session.execute(query)
-    cart = cart.scalar()
-    if cart:
-        cart.quantity += 1
+    result = await session.execute(query)
+    cart_item = result.scalar_one_or_none()
+
+    if cart_item:
+        cart_item.quantity += 1
         if tovar.quantity == 0:
             await orm_delete_promocode(session, product_name)
     else:
-        session.add(Cart(user_id=user_id, product_name=product_name, quantity=1, price=price))
+        new_cart_item = Cart(user_id=user_id, product_name=product_name, quantity=1, price=price)
+        session.add(new_cart_item)
         if tovar.quantity == 0:
             await orm_delete_promocode(session, product_name)
+
+    await session.commit()
 
 
 async def orm_chek_cart(session: AsyncSession, user_id: int):
@@ -86,7 +90,6 @@ async def orm_reduce_service_in_cart(session: AsyncSession, user_id: int, produc
     query = select(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name)
     result = await session.execute(query)
     cart = result.scalar()
-    print("qweasdjNUIYWYHUIERBHUYWEBRHJUWEBRHJUBWIFdOSFMIKOWEMOF",cart)
 
     if not cart:
         return

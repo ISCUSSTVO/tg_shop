@@ -142,11 +142,7 @@ async def cart(session: AsyncSession, level: int, page: int, user_id: int):
     banner = await orm_get_banner(session, "cart")
     carts = await orm_chek_cart(session, user_id)
     qwe = await orm_chek_user_cart(session, user_id)
-    paginator = Paginator(carts, page=page )
-    current_cart = paginator.get_page()[0]
-    w = await orm_get_promocode_by_name(session, current_cart.product_name)
-    full_price = sum([cart.quantity * w.price for cart in carts])
-    
+    print(f'nqweasdqweasdqweqwhebwqhyuebuyqwhebhuqweuhqwe\n{carts}\nqweasdqweasdyyhujiktgyhujiktgyhuio\n{qwe}')
 
     if not carts:
         image = InputMediaPhoto(
@@ -157,12 +153,24 @@ async def cart(session: AsyncSession, level: int, page: int, user_id: int):
             "Назад": Menucallback(level=0, menu_name="main").pack()
         })
     else:
-        
-       
+        paginator = Paginator(carts, page=page)
+        current_page_items = paginator.get_page()
 
-        cart_price = round(current_cart.quantity * w.price, 2)
+        if not current_page_items:
+            page = paginator.pages
+            current_page_items = paginator.get_page()
+
+        current_cart = current_page_items[0]
         
-        caption = f"<strong>{current_cart.product_name}</strong>\n{w.price}₽ x {current_cart.quantity} = {cart_price}\nСтоимсоть товаров в корзине {full_price}\nруб.\nТовар {paginator.page} из {paginator.pages} в корзине."
+        w = await orm_get_promocode_by_name(session, current_cart.product_name)
+        
+        if w is None:
+            caption = f"<strong>{current_cart.product_name}</strong>\nТовар не найден в каталоге."
+            cart_price = 0
+        else:
+            cart_price = round(current_cart.quantity * w.price, 2)
+            full_price = sum([cart.quantity * (await orm_get_promocode_by_name(session, cart.product_name)).price for cart in carts])
+            caption = f"<strong>{current_cart.product_name}</strong>\n{current_cart.price}₽ x {current_cart.quantity} = {cart_price}\nСтоимость товаров в корзине {full_price} руб.\nТовар {page} из {paginator.pages} в корзине."
 
         image = InputMediaPhoto(
             media=banner.image,
