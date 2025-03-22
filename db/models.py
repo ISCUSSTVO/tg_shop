@@ -70,4 +70,5 @@ class Cart(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(Integer(), nullable=False)
     product_name: Mapped[str] = mapped_column(String(15), nullable=False)
-    price: Mapped[int]  = mapped_column(Integer)
+    quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    price: Mapped[int] = mapped_column(Integer, nullable=False)

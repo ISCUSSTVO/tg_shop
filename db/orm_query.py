@@ -1,3 +1,4 @@
+from math import prod
 from sqlalchemy import delete, distinct, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.models import Catalog, Admins, Banner, PromocodeUsage, Promokodes, Spam, Users, Cart
@@ -41,34 +42,61 @@ async def orm_get_info_pages(session: AsyncSession):
 
 
 ############### Работа с корзиной ##############
-async def orm_add_to_cart(session: AsyncSession,  product_name: str, user_id, prod_price):
-    obj = Cart(
-        user_id = user_id,
-        product_name=product_name,
-        price = prod_price
-        )
-    session.add(obj)
-    await session.commit()
+async def orm_add_to_cart(session: AsyncSession, product_name: str, user_id: int, price: int):
+    async with session.begin():
+        tovar = await orm_get_promocode_by_name(session, product_name)
+        query = select(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name)
+        cart = await session.execute(query)
+        cart = cart.scalar()
+        if cart:
+            cart.quantity += 1
+            if tovar.quantity == 0:
+                await orm_delete_promocode(session, product_name)
+        else:
+            session.add(Cart(user_id=user_id, product_name=product_name, quantity=1, price=price))
+            if tovar.quantity == 0:
+                await orm_delete_promocode(session, product_name)
 
-async def orm_chek_cart(session: AsyncSession, user_id):
+
+async def orm_chek_cart(session: AsyncSession, user_id: int):
     query = select(Cart).where(Cart.user_id == user_id)
     result = await session.execute(query)
     return result.scalars().all()
 
-async def orm_chek_user_cart(session: AsyncSession, user_id):
+async def orm_chek_user_cart(session: AsyncSession, user_id: int):
     query = select(Cart).where(Cart.user_id == user_id)
     result = await session.execute(query)
     return result.scalar()
 
-async def orm_clear_cart(session: AsyncSession, user_id):
+async def orm_clear_cart(session: AsyncSession, user_id: int):
     query = delete(Cart).where(Cart.user_id == user_id)
     await session.execute(query)
     await session.commit()
 
-async def orm_clear_tovar_on_cart(session: AsyncSession, tovar):
+async def orm_clear_tovar_on_cart(session: AsyncSession, tovar: str):
     query = delete(Cart).where(Cart.product_name == tovar)
     await session.execute(query)
     await session.commit()
+
+async def orm_delete_from_cart(session: AsyncSession, user_id: int, product_name: str):
+    query = delete(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name)
+    await session.execute(query)
+    await session.commit()
+
+async def orm_reduce_service_in_cart(session: AsyncSession, user_id: int, product_name: str):
+    query = select(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name)
+    result = await session.execute(query)
+    cart = result.scalar()
+
+    if not cart:
+        return
+    if cart.quantity > 1:
+        cart.quantity -= 1
+        await session.commit()
+        return True
+    else:
+        await orm_delete_from_cart(session, user_id, product_name)
+        return False
 
 ############### Работа с каталогами ##############
 async def orm_add_Promocode(session: AsyncSession, data: dict):
@@ -124,8 +152,8 @@ async def orm_get_promocode_by_category(session: AsyncSession, game_cat: str):
 async def orm_get_promocode_by_name(session: AsyncSession, promocode: str):
     query = select(Catalog).where(Catalog.name == promocode)
     result = await session.execute(query)
-    account = result.scalars().first()
-    return account
+    return result.scalars().first()
+
 
 
 async def orm_delete_promocode(session: AsyncSession, desc_name: str):
@@ -187,7 +215,7 @@ async def orm_use_promocode(session: AsyncSession, user_id: int, promo: str):
     query = select(Promokodes).where(Promokodes.promocode == promo)
     result = await session.execute(query)
     promocode = result.scalars().first()
-    # Уменьшаем количество использований промокода
+
     if promocode.usage > 1:
         update_query = (
             update(Promokodes)
@@ -198,8 +226,7 @@ async def orm_use_promocode(session: AsyncSession, user_id: int, promo: str):
     else:
         delete_query = delete(Promokodes).where(Promokodes.promocode == promo)
         await session.execute(delete_query)
-    
-    # Коммитим изменения
+
     await session.commit()
 
 async def orm_get_promocode_usage(session: AsyncSession, user_id):

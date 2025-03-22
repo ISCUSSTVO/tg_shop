@@ -1,6 +1,8 @@
 import dis
+from logging import captureWarnings
 from aiogram import F
-from aiogram.types import InputMediaPhoto
+from aiogram.fsm.context import FSMContext
+from aiogram.types import InlineKeyboardButton, InputMediaPhoto
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.orm_query import (
     orm_chek_cart,
@@ -13,8 +15,30 @@ from db.orm_query import (
     orm_get_promocode_by_name,
     orm_get_promocode_usage,
     orm_get_user_by_userid,
+    orm_delete_from_cart,
+    orm_reduce_service_in_cart,
+    orm_add_to_cart,
+    orm_get_catalog,
 )
-from kbds.inline import Menucallback, get_user_main_btns, get_callback_btns
+from kbds.inline import (
+    Menucallback,
+    back_kbds,
+    get_user_main_btns, 
+    get_callback_btns, 
+    get_user_cart)
+from utils.paginator import Paginator
+
+
+
+def pages(paginator: Paginator):
+    btns = dict()
+    if paginator.has_previous():
+        btns["◀ Пред."] = "previous"
+
+    if paginator.has_next():
+        btns["След. ▶"] = "next"
+
+    return btns
 
 
 async def main(session, level, menu_name):
@@ -62,7 +86,6 @@ async def promocodes_catalog(session: AsyncSession, game_cat: str, level):
 async def payment(session: AsyncSession, tovar: str, user_id: int, level: int):
     banner = await orm_get_banner(session, "catalog")
     product = await orm_get_promocode_by_name(session, tovar)
-    user_pr = await orm_chek_user_cart(session, user_id)
     user = await orm_chek_cart(session, user_id)
     list = ''.join([i.product_name for i in user])
     if product is None:
@@ -115,48 +138,46 @@ async def payment(session: AsyncSession, tovar: str, user_id: int, level: int):
     return image, kbds
 
 
-
-async def cart(session, user_id):
-    s=  1
+async def cart(session: AsyncSession, level: int, page: int, user_id: int):
     banner = await orm_get_banner(session, "cart")
-    cart = await orm_chek_user_cart(session, user_id)
-    user = await orm_chek_cart(session, user_id)
-    promo = await orm_get_promocode_by_name(session, cart.product_name)
-    if cart:
-        #products_info = "\n".join([f"{item.product_name} - {item.price}₽" for item in user])
-        
-        caption = f"{promo.category}\n{promo.name} \nКоличество: {s} штука \nИтоговая цена - {cart.price}₽"
-        price = sum([item.price for item in user])
-        print('qwe',price)
+    carts = await orm_chek_cart(session, user_id)
 
-
-
-
-
-
-        kbds = get_callback_btns(
-        btns={
-            "+1": f"add_cart_{promo.name}_{promo.price}",
-            "-1":await orm_clear_tovar_on_cart(session, promo.name) if s == 1 else s-1,
-            "Оплатить": f"select_payment_{price}",
-            "очистить корзину": "clean_cart",
-            "назад": Menucallback(level=0, menu_name="main").pack()
-        }
-    )
-    else:
-        caption = "Корзина пуста"
-        kbds = get_callback_btns(
-            btns={
-                "назад": Menucallback(level=0, menu_name="main").pack()
-            }
+    if not carts:
+        image = InputMediaPhoto(
+            media=banner.image, caption=f"<strong>Ваша корзина пуста</strong>"
         )
-    image = InputMediaPhoto(media=banner.image, caption=caption)
+
+        kbds = get_callback_btns(btns={
+            "Назад": Menucallback(level=0, menu_name="main").pack()
+        })
+    else:
+        paginator = Paginator(carts, page=page, per_page=1)
+        current_cart = paginator.get_page()[0]
+        w = await orm_get_promocode_by_name(session, current_cart.product_name)
+        
+        if w is None:
+            caption = f"<strong>{current_cart.product_name}</strong>\nТовар не найден в каталоге."
+            cart_price = 0
+        else:
+            cart_price = round(current_cart.quantity * w.price, 2)
+            caption = f"<strong>{current_cart.product_name}</strong>\n{w.price}₽ x {current_cart.quantity} = {cart_price} руб.\nТовар {paginator.page} из {paginator.pages} в корзине."
+
+        image = InputMediaPhoto(
+            media=banner.image,
+            caption=caption,
+            parse_mode="HTML",
+        )
+
+        pagination_btns = pages(paginator)
+
+        kbds = get_user_cart(
+            level=level,
+            page=page,
+            pagination_btns=pagination_btns,
+        )
+        kbds.inline_keyboard.append([InlineKeyboardButton(text="Назад", callback_data=Menucallback(level=0, menu_name="main").pack())])
+
     return image, kbds
-
-
-
-
-
 
 async def get_menu_content(
     session: AsyncSession,

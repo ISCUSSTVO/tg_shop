@@ -1,7 +1,9 @@
 import asyncio
 import json
+from math import prod
 from aiogram import Bot, types, Router, F
-from aiogram.types import InputMediaPhoto, LabeledPrice
+from aiogram.filters.callback_data import CallbackData
+from aiogram.types import CallbackQuery, InputMediaPhoto, LabeledPrice
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import CommandStart
@@ -14,13 +16,16 @@ from db.orm_query import (
     orm_add_user, 
     orm_chek_promo,
     orm_chek_user_cart,
-    orm_clear_cart, 
+    orm_clear_cart,
+    orm_delete_from_cart, 
     orm_get_promocode_by_name,
     orm_get_promocode_usage, 
     orm_get_user_by_userid, 
     orm_get_banner,
     orm_use_promocode,
-    orm_minus_quant
+    orm_minus_quant,
+    orm_reduce_service_in_cart,
+    orm_delete_promocode
     )
 
 from handlers.menu_proccesing import (
@@ -38,6 +43,7 @@ user_router = Router()
 sent_msg = set()
 
 
+
 @user_router.message(F.text.lower().contains('start') | F.text.lower().contains('старт'))
 @user_router.message(CommandStart())
 async def start(message:types.Message):
@@ -53,7 +59,7 @@ async def start(message:types.Message):
             "🤓Отзывы",
             "📺Тг канал",
             "🛒Корзина"
-        },sizes=(1,2)) )
+        },sizes=(2,)) )
 
 @user_router.message(F.text.lower().contains('тг '))
 async def tg_chennel(message: types.Message):
@@ -69,14 +75,36 @@ async def Otzivi(message: types.Message):
 
 @user_router.message(F.text.lower().contains('корзина'))
 async def go_to_cart (message:types.Message, session: AsyncSession):
-    q = message.from_user.id
-    image, kbds = await cart(session, q)
+    image, kbds = await cart(session, level=1, user_id=message.from_user.id, page=1, menu_name='cart')
     await message.answer_photo(photo=image.media, caption=image.caption, reply_markup=kbds)
 
 
 
+@user_router.callback_query(F.data.startswith('increment_') | F.data.startswith('decrement_') | F.data.startswith('delete_') | F.data.startswith('next_') | F.data.startswith('previous_'))
+async def cart_handly(callback: CallbackQuery, session: AsyncSession):
+    data = callback.data.split('_')
+    menu_name = data[0]
+    page = 1 
+    current_cart = await orm_chek_user_cart(session, callback.from_user.id)
+    q = await orm_get_promocode_by_name(session, current_cart.product_name)
+    if menu_name == "delete":
+        await orm_delete_from_cart(session, callback.from_user.id, current_cart.product_name)
+        if page > 1:
+            page -= 1
+        image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=1, menu_name='cart')
+        await callback.message.edit_media(media=image, reply_markup=kbds)\
+        
+    elif menu_name == "decrement":
+        is_cart = await orm_reduce_service_in_cart(session, callback.from_user.id, current_cart.product_name)
+        if page > 1 and not is_cart:
+            page -= 1
+        image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=1, menu_name='cart')
+        await callback.message.edit_media(media=image, reply_markup=kbds)
 
-
+    elif menu_name == "increment":
+        await orm_add_to_cart(session, current_cart.product_name, callback.from_user.id, q.price)
+        image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=1, menu_name='cart')
+        await callback.message.edit_media(media=image, reply_markup=kbds)
 
 @user_router.callback_query(F.data == 'menu')
 @user_router.message(F.text.lower().contains('menu') | F.text.lower().contains('меню'))
@@ -101,7 +129,7 @@ async def user_menu(callback: types.CallbackQuery, callback_data: Menucallback, 
         session,
         level=callback_data.level,
         menu_name=callback_data.menu_name,
-        user_id=1
+        user_id=callback.from_user.id
     )
     if result is None:
         await callback.answer("Не удалось получить данные.", show_alert=True)
@@ -113,24 +141,21 @@ async def user_menu(callback: types.CallbackQuery, callback_data: Menucallback, 
 
 @user_router.callback_query(F.data.startswith('add_cart_'))
 async def add_cart(callback_query: types.CallbackQuery, session: AsyncSession):
-    tovar = callback_query.data.split('_')[-2]
-    price = callback_query.data.split('_')[-1]
+    data = callback_query.data.split('_')
     car = await orm_chek_cart(session, callback_query.from_user.id)
-    promo = await orm_get_promocode_by_name(session, tovar)
-    
+    promo = await orm_get_promocode_by_name(session, data[-2])
     if promo.quantity == 0:
         await callback_query.answer("Товара нет в наличии")
-        return
+        await orm_delete_promocode(session, data[-2])
+        image, kbds = await payment(session, data[-2], callback_query.from_user.id, level=2)
+        await callback_query.message.edit_media(media=image, reply_markup=kbds)
     
-    await orm_minus_quant(session, tovar)
-    
-    list = [i.product_name for i in car] if car else []
-    if tovar not in list:
-        await orm_add_to_cart(session, tovar, callback_query.from_user.id, price)
-        await callback_query.answer("Товар добавлен в корзину")
+        
     else:
-        await callback_query.answer("Товар уже в корзине")
-        return
+        await orm_add_to_cart(session, data[-2], callback_query.from_user.id, price=data[-1])
+        await callback_query.answer("Товар добавлен в корзину")
+        await orm_minus_quant(session, data[-2])
+
         
 
 @user_router.callback_query(F.data == 'clean_cart')
