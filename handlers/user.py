@@ -78,42 +78,29 @@ async def go_to_cart (message:types.Message, session: AsyncSession):
 
 @user_router.callback_query(F.data.startswith('increment_') | F.data.startswith('decrement_') | F.data.startswith('delete_') | F.data.startswith('next_') | F.data.startswith('previous_'))
 async def cart_handly(callback: CallbackQuery, session: AsyncSession):
-    async with session.begin():
-        data = callback.data.split('_')
-        menu_name = data[0]
-        page = int(data[-1])
-        current_cart = await orm_chek_user_cart(session, callback.from_user.id)
-        q = await orm_get_promocode_by_name(session, current_cart.product_name)
-
-        if menu_name == "delete":
-            await orm_delete_from_cart(session, callback.from_user.id, current_cart.product_name)
-            if page > 1:
-                page -= 1
-            image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
-            await callback.message.edit_media(media=image, reply_markup=kbds)
-        
-        elif menu_name == "decrement":
-            is_cart = await orm_reduce_service_in_cart(session, callback.from_user.id, current_cart.product_name)
-            if page > 1 and not is_cart:
-                page -= 1
-            image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
-            await callback.message.edit_media(media=image, reply_markup=kbds)
-
-        elif menu_name == "increment":
-            await orm_add_to_cart(session, current_cart.product_name, callback.from_user.id, q.price)
-            image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
-            await callback.message.edit_media(media=image, reply_markup=kbds)
-
-        elif menu_name == "next":
-            page += 1
-            image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
-            await callback.message.edit_media(media=image, reply_markup=kbds)
-
-        elif menu_name == "previous":
-            if page > 1:
-                page -= 1
-            image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
-            await callback.message.edit_media(media=image, reply_markup=kbds)
+    data = callback.data.split('_')
+    menu_name = data[0]
+    page = int(data[-1])
+    current_cart = await orm_chek_user_cart(session, callback.from_user.id)
+    q = await orm_get_promocode_by_name(session, current_cart.product_name)
+    if menu_name == "delete":
+        await orm_delete_from_cart(session, callback.from_user.id, current_cart.product_name)
+        if page > 1:
+            page -= 1
+    
+    elif menu_name == "decrement":
+        is_cart = await orm_reduce_service_in_cart(session, callback.from_user.id, current_cart.product_name)
+        if page > 1 and not is_cart:
+            page -= 1
+    elif menu_name == "increment":
+        await orm_add_to_cart(session, current_cart.product_name, callback.from_user.id, q.price)
+    elif menu_name == "next":
+        page += 1
+    elif menu_name == "previous":
+        if page > 1:
+            page -= 1
+    image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
+    await callback.message.edit_media(media=image, reply_markup=kbds)
 
 
 @user_router.callback_query(F.data == 'menu')
