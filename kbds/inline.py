@@ -119,9 +119,9 @@ def get_user_cart(
         for text, action in pagination_btns.items():
             if action == "next":
                 row.append(InlineKeyboardButton(text=text,
-                        callback_data=f'next_{level}_{page + 1}'))
+                        callback_data=f'next_{level}_{page}'))
             elif action == "previous":
                 row.append(InlineKeyboardButton(text=text,
-                        callback_data=f'previous_{level}_{page - 1}'))
+                        callback_data=f'previous_{level}_{page}'))
     
         return keyboard.row(*row).as_markup()

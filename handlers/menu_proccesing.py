@@ -141,6 +141,12 @@ async def payment(session: AsyncSession, tovar: str, user_id: int, level: int):
 async def cart(session: AsyncSession, level: int, page: int, user_id: int):
     banner = await orm_get_banner(session, "cart")
     carts = await orm_chek_cart(session, user_id)
+    qwe = await orm_chek_user_cart(session, user_id)
+    paginator = Paginator(carts, page=page )
+    current_cart = paginator.get_page()[0]
+    w = await orm_get_promocode_by_name(session, current_cart.product_name)
+    full_price = sum([cart.quantity * w.price for cart in carts])
+    
 
     if not carts:
         image = InputMediaPhoto(
@@ -151,12 +157,12 @@ async def cart(session: AsyncSession, level: int, page: int, user_id: int):
             "Назад": Menucallback(level=0, menu_name="main").pack()
         })
     else:
-        paginator = Paginator(carts, page=page, per_page=1)
-        current_cart = paginator.get_page()[0]
-        w = await orm_get_promocode_by_name(session, current_cart.product_name)
+        
+       
 
         cart_price = round(current_cart.quantity * w.price, 2)
-        caption = f"<strong>{current_cart.product_name}</strong>\n{w.price}₽ x {current_cart.quantity} = {cart_price} руб.\nТовар {paginator.page} из {paginator.pages} в корзине."
+        
+        caption = f"<strong>{current_cart.product_name}</strong>\n{w.price}₽ x {current_cart.quantity} = {cart_price}\nСтоимсоть товаров в корзине {full_price}\nруб.\nТовар {paginator.page} из {paginator.pages} в корзине."
 
         image = InputMediaPhoto(
             media=banner.image,

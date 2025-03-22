@@ -86,16 +86,18 @@ async def orm_reduce_service_in_cart(session: AsyncSession, user_id: int, produc
     query = select(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name)
     result = await session.execute(query)
     cart = result.scalar()
+    print("qweasdjNUIYWYHUIERBHUYWEBRHJUWEBRHJUBWIFdOSFMIKOWEMOF",cart)
 
     if not cart:
         return
     if cart.quantity > 1:
         cart.quantity -= 1
-        await session.commit()
         return True
     else:
         await orm_delete_from_cart(session, user_id, product_name)
+        await session.commit()
         return False
+
 
 ############### Работа с каталогами ##############
 async def orm_add_Promocode(session: AsyncSession, data: dict):

@@ -81,7 +81,7 @@ async def cart_handly(callback: CallbackQuery, session: AsyncSession):
     async with session.begin():
         data = callback.data.split('_')
         menu_name = data[0]
-        page = 1
+        page = int(data[-1])
         current_cart = await orm_chek_user_cart(session, callback.from_user.id)
         q = await orm_get_promocode_by_name(session, current_cart.product_name)
 
@@ -114,6 +114,7 @@ async def cart_handly(callback: CallbackQuery, session: AsyncSession):
                 page -= 1
             image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
             await callback.message.edit_media(media=image, reply_markup=kbds)
+
 
 @user_router.callback_query(F.data == 'menu')
 @user_router.message(F.text.lower().contains('menu') | F.text.lower().contains('меню'))
