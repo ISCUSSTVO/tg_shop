@@ -82,6 +82,7 @@ async def cart_handly(callback: CallbackQuery, session: AsyncSession):
     menu_name = data[0]
     page = int(data[-2])
     tovar = data[-1]
+    print(f"Data: {data}")
  
 
     current_cart = await orm_chek_user_cart(session, callback.from_user.id)
@@ -89,36 +90,29 @@ async def cart_handly(callback: CallbackQuery, session: AsyncSession):
         await orm_delete_from_cart(session, callback.from_user.id, current_cart.product_name)
         if page > 1:
             page -= 1
-        #image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
-        #await callback.message.edit_media(media=image, reply_markup=kbds)
     
     elif menu_name == "decrement":
         is_cart = await orm_reduce_service_in_cart(session, callback.from_user.id, current_cart.product_name)
         if page > 1 and not is_cart:
             page -= 1
-        #image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
-        #await callback.message.edit_media(media=image, reply_markup=kbds)
 
     elif menu_name == "increment":
         await orm_add_to_cart(session, tovar, callback.from_user.id, current_cart.price)
-        #image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
-        #await callback.message.edit_media(media=image, reply_markup=kbds)
 
     elif menu_name == "next":
-        page += 1
-        #image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
-        #await callback.message.edit_media(media=image, reply_markup=kbds)
+        page +=1
 
     elif menu_name == "previous":
         if page > 1:
             page -= 1
-        #image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
-        #await callback.message.edit_media(media=image, reply_markup=kbds)
 
     image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
-    #print(f"Image: {image}, Keyboards: {kbds}")
-
-    await callback.message.edit_media(media=image, reply_markup=kbds)
+    for row in kbds.inline_keyboard:
+        for button in row:
+            if button.callback_data and button.callback_data.startswith(menu_name):
+                button.callback_data = f"{menu_name}_{page}_{tovar}"
+                
+    await callback.message.edit_media(media=image,reply_markup=kbds)
 
 
 @user_router.callback_query(F.data == 'menu')

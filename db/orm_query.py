@@ -71,6 +71,11 @@ async def orm_chek_user_cart(session: AsyncSession, user_id: int):
     result = await session.execute(query)
     return result.scalar()
 
+async def orm_chek_user_cart_on_code(session: AsyncSession, user_id: int, code:str):
+    query = select(Cart).where(Cart.user_id == user_id, Cart.product_name == code)
+    result = await session.execute(query)
+    return result.scalar()
+
 async def orm_clear_cart(session: AsyncSession, user_id: int):
     query = delete(Cart).where(Cart.user_id == user_id)
     await session.execute(query)
@@ -91,8 +96,8 @@ async def orm_reduce_service_in_cart(session: AsyncSession, user_id: int, produc
     result = await session.execute(query)
     cart = result.scalar()
 
-    if not cart:
-        return
+    #if not cart:
+    #    return
     if cart.quantity > 1:
         cart.quantity -= 1
         return True
