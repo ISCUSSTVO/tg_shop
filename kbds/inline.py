@@ -98,7 +98,6 @@ def back_kbds(
 ############################################################Клавиатура покупки############################################################
 def get_user_cart(
     *,
-    level: int,
     page: int | None,
     pagination_btns: dict | None,
     tovar: str,
@@ -107,22 +106,22 @@ def get_user_cart(
     keyboard = InlineKeyboardBuilder()
     if page:
         keyboard.add(InlineKeyboardButton(text='Удалить',
-                    callback_data=f'delete_{level}_{page}_{tovar}'))
+                    callback_data=f'delete_{tovar}_{page}'))
         
         keyboard.add(InlineKeyboardButton(text='-1',
-                    callback_data=f'decrement_{level}_{page}_{tovar}'))
+                    callback_data=f'decrement_{tovar}_{page}'))
         
         keyboard.add(InlineKeyboardButton(text='+1',
-                    callback_data=f'increment_{level}_{page}_{tovar}'))
+                    callback_data=f'increment_{tovar}_{page}'))
 
         keyboard.adjust(*sizes)
         row = []
         for text, action in pagination_btns.items():
             if action == "next":
                 row.append(InlineKeyboardButton(text=text,
-                        callback_data=f'next_{level}_{page}'))
+                        callback_data=f'next_{tovar}_{page}'))
             elif action == "previous":
                 row.append(InlineKeyboardButton(text=text,
-                        callback_data=f'previous_{level}_{page}'))
+                        callback_data=f'previous_{tovar}_{page}'))
     
         return keyboard.row(*row).as_markup()

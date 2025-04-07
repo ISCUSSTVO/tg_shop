@@ -1,11 +1,11 @@
 import asyncio
 import json
-from math import prod
 from aiogram import Bot, types, Router, F
 from aiogram.types import CallbackQuery, InputMediaPhoto, LabeledPrice
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import CommandStart
+from utils.paginator import Paginator
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.engine import AsyncSessionLocal
 from db.orm_query import (
@@ -13,8 +13,6 @@ from db.orm_query import (
     orm_chek_cart,
     orm_add_user, 
     orm_chek_promo,
-    orm_chek_user_cart,
-    orm_clear_cart,
     orm_delete_from_cart, 
     orm_get_promocode_by_name,
     orm_get_promocode_usage, 
@@ -36,6 +34,7 @@ from kbds.inline import (Menucallback,
     get_keyboard,  
     get_callback_btns, 
     get_callback_btns_url)
+
 
 user_router = Router()
 sent_msg = set()
@@ -73,45 +72,53 @@ async def Otzivi(message: types.Message):
 
 @user_router.message(F.text.lower().contains('корзина') | F.text.lower().contains('cart'))
 async def go_to_cart (message:types.Message, session: AsyncSession):
-    image, kbds = await cart(session, level=1, user_id=message.from_user.id, page=1)
+    image, kbds = await cart(session, user_id=message.from_user.id, page=1)
     await message.answer_photo(photo=image.media, caption=image.caption, reply_markup=kbds)
 
 @user_router.callback_query(F.data.startswith('increment_') | F.data.startswith('decrement_') | F.data.startswith('delete_') | F.data.startswith('next_') | F.data.startswith('previous_'))
 async def cart_handly(callback: CallbackQuery, session: AsyncSession):
     data = callback.data.split('_')
     menu_name = data[0]
-    page = int(data[-2])
-    tovar = data[-1]
-    print(f"Data: {data}")
+    page = int(data[-1])
+    tovar = data[-2]
  
 
-    current_cart = await orm_chek_user_cart(session, callback.from_user.id)
+    current_cart = await orm_chek_cart(session, callback.from_user.id)
+    paginator = Paginator(current_cart, page=page, per_page=1)
+    current_page_items = paginator.get_page()
+
+    if not current_page_items:
+        page = max(1, paginator.page)
+        current_page_items = paginator.get_page()
+
+    
+
     if menu_name == "delete":
-        await orm_delete_from_cart(session, callback.from_user.id, current_cart.product_name)
-        if page > 1:
-            page -= 1
+        await orm_delete_from_cart(session, callback.from_user.id, current_cart[0].product_name)
+        page = max(1, page - 1)
     
     elif menu_name == "decrement":
-        is_cart = await orm_reduce_service_in_cart(session, callback.from_user.id, current_cart.product_name)
-        if page > 1 and not is_cart:
-            page -= 1
+        is_cart = await orm_reduce_service_in_cart(session, callback.from_user.id, current_cart[0].product_name)
+        if not is_cart:
+            page = max(1, page - 1)
 
     elif menu_name == "increment":
-        await orm_add_to_cart(session, tovar, callback.from_user.id, current_cart.price)
+        a = await orm_add_to_cart(session, tovar, callback.from_user.id, current_cart[0].price)
+        if a == False:
+            await callback.answer("Товар закончился")
 
     elif menu_name == "next":
-        page +=1
+        page = min(page + 1 , paginator.pages)
 
     elif menu_name == "previous":
-        if page > 1:
-            page -= 1
+        page = max(1 , page - 1 )
 
-    image, kbds = await cart(session, level=1, user_id=callback.from_user.id, page=page)
+    image, kbds = await cart(session, user_id=callback.from_user.id, page=page)
     for row in kbds.inline_keyboard:
         for button in row:
             if button.callback_data and button.callback_data.startswith(menu_name):
-                button.callback_data = f"{menu_name}_{page}_{tovar}"
-                
+                button.callback_data = f"{menu_name}_{tovar}_{page}"
+
     await callback.message.edit_media(media=image,reply_markup=kbds)
 
 

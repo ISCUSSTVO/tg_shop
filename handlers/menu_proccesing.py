@@ -1,25 +1,13 @@
-import dis
-from logging import captureWarnings
-from aiogram import F
-from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardButton, InputMediaPhoto
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.orm_query import (
     orm_chek_cart,
-    orm_chek_user_cart,
     orm_chek_user_cart_on_code,
-    orm_clear_tovar_on_cart,
     orm_get_banner,
     orm_get_category_catalog,
-    #orm_get_promocode,
     orm_get_promocode_by_category,
     orm_get_promocode_by_name,
     orm_get_promocode_usage,
-    orm_get_user_by_userid,
-    orm_delete_from_cart,
-    orm_reduce_service_in_cart,
-    orm_add_to_cart,
-    orm_get_catalog,
 )
 from kbds.inline import (
     Menucallback,
@@ -138,14 +126,9 @@ async def payment(session: AsyncSession, tovar: str, user_id: int, level: int):
     return image, kbds
 
 
-async def cart(session: AsyncSession, level: int, page: int, user_id: int):
+async def cart(session: AsyncSession, page: int, user_id: int):
     banner = await orm_get_banner(session, "cart")
     carts = await orm_chek_cart(session, user_id)
-    for cart in carts:
-        print("===========================================",f"{cart}\n {cart.price}")
-    qwe = await orm_chek_user_cart(session, user_id)
-    print("-------------------------------------------",page)
-    print(f'nqweasdqweasdqweqwhebwqhyuebuyqwhebhuqweuhqwe\n{carts}\nqweasdqweasdyyhujiktgyhujiktgyhuio\n{qwe}')
 
     if not carts:
         image = InputMediaPhoto(
@@ -155,18 +138,19 @@ async def cart(session: AsyncSession, level: int, page: int, user_id: int):
         kbds = get_callback_btns(btns={
             "Назад": Menucallback(level=0, menu_name="main").pack()
         })
+        
     else:
         paginator = Paginator(carts, page=page)
         current_page_items = paginator.get_page()
 
         if not current_page_items:
-            page = paginator.pages
+            page = max(1, paginator.pages)
             current_page_items = paginator.get_page()
 
         current_cart = current_page_items[0]
         
 
-        print("===========================================",await orm_get_promocode_by_name(session, cart.product_name))
+    
         cart_price = round(current_cart.quantity * current_cart.price, 2)
         full_price = sum([cart.quantity * (await orm_chek_user_cart_on_code(session, user_id, cart.product_name)).price for cart in carts])
         caption = f"<strong>{current_cart.product_name}</strong>\n{current_cart.price}₽ x {current_cart.quantity} = {cart_price}\nСтоимость товаров в корзине {full_price} руб.\nТовар {page} из {paginator.pages} в корзине."
@@ -180,7 +164,6 @@ async def cart(session: AsyncSession, level: int, page: int, user_id: int):
         pagination_btns = pages(paginator)
 
         kbds = get_user_cart(
-            level=level,
             page=page,
             pagination_btns=pagination_btns,
             tovar=current_cart.product_name,

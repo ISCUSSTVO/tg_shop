@@ -47,17 +47,20 @@ async def orm_add_to_cart(session: AsyncSession, product_name: str, user_id: int
     query = select(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name)
     result = await session.execute(query)
     cart_item = result.scalar_one_or_none()
-
-    if cart_item:
+    if tovar is None:
+            return False
+    elif cart_item:
         cart_item.quantity += 1
-        if tovar.quantity == 0:
-            await orm_delete_promocode(session, product_name)
+        
     else:
         new_cart_item = Cart(user_id=user_id, product_name=product_name, quantity=1, price=price)
         session.add(new_cart_item)
-        if tovar.quantity == 0:
-            await orm_delete_promocode(session, product_name)
 
+    if tovar.quantity == 0:
+            await orm_delete_promocode(session, product_name)
+    else:
+        tovar.quantity -=1
+    
     await session.commit()
 
 
@@ -88,24 +91,26 @@ async def orm_clear_tovar_on_cart(session: AsyncSession, tovar: str):
 
 async def orm_delete_from_cart(session: AsyncSession, user_id: int, product_name: str):
     query = delete(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name)
+    
     await session.execute(query)
     await session.commit()
 
 async def orm_reduce_service_in_cart(session: AsyncSession, user_id: int, product_name: str):
+    tovar = await orm_get_promocode_by_name(session, product_name)
     query = select(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name)
     result = await session.execute(query)
     cart = result.scalar()
-
-    #if not cart:
-    #    return
-    if cart.quantity > 1:
-        cart.quantity -= 1
+    if cart.quantity >= 1:
+        query = update(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name).values(quantity=cart.quantity - 1)
+        tovar.quantity += 1
+        await session.execute(query)
+        await session.commit()
         return True
     else:
         await orm_delete_from_cart(session, user_id, product_name)
         await session.commit()
         return False
-
+    
 
 ############### Работа с каталогами ##############
 async def orm_add_Promocode(session: AsyncSession, data: dict):
