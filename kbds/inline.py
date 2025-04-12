@@ -1,3 +1,4 @@
+from typing import Optional
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardButton, KeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
@@ -5,7 +6,10 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 class Menucallback(CallbackData, prefix ="menu"):
     level: int
     menu_name: str
+    game_cat: Optional[str] = None 
+    tovar: str|None = None
     page: int = 1
+    price: Optional[int] = None 
 
 class BUYcallback(CallbackData, prefix = 'cart'):
     menu_name: str
@@ -68,10 +72,13 @@ def get_user_main_btns(*, level:int, sizes: tuple[int] = (2,)):
         "Каталог": "catalog",
         "Варианы оплаты": "payment",
         "История": "history",
+        "Корзина":"cart"
         }
     for text, menu_name  in btns.items():
         if menu_name == 'catalog':
             keyboard.add(InlineKeyboardButton(text=text, callback_data=Menucallback(level=1, menu_name=menu_name).pack())) 
+        elif menu_name == 'cart':
+            keyboard.add(InlineKeyboardButton(text=text, callback_data=Menucallback(level=4, menu_name=menu_name).pack())) 
         else:
             keyboard.add(InlineKeyboardButton(text=text,
                                               callback_data =Menucallback(level=level, menu_name=menu_name).pack()))   
@@ -98,30 +105,32 @@ def back_kbds(
 ############################################################Клавиатура покупки############################################################
 def get_user_cart(
     *,
+    level: int,
     page: int | None,
     pagination_btns: dict | None,
-    tovar: str,
+    tovar: str | None,
+    price: int | None = None,
     sizes: tuple[int] = (3,)
 ):
     keyboard = InlineKeyboardBuilder()
     if page:
         keyboard.add(InlineKeyboardButton(text='Удалить',
-                    callback_data=f'delete_{tovar}_{page}'))
-        
+                    callback_data=Menucallback(level=level, menu_name='delete', tovar=tovar, page=page).pack()))
         keyboard.add(InlineKeyboardButton(text='-1',
-                    callback_data=f'decrement_{tovar}_{page}'))
-        
+                    callback_data=Menucallback(level=level, menu_name='decrement', tovar=tovar, page=page).pack()))
         keyboard.add(InlineKeyboardButton(text='+1',
-                    callback_data=f'increment_{tovar}_{page}'))
+                    callback_data=Menucallback(level=level, menu_name='increment', tovar=tovar, page=page,price=price).pack()))
 
         keyboard.adjust(*sizes)
+
         row = []
-        for text, action in pagination_btns.items():
-            if action == "next":
+        for text, menu_name in pagination_btns.items():
+            if menu_name == "next":
                 row.append(InlineKeyboardButton(text=text,
-                        callback_data=f'next_{tovar}_{page}'))
-            elif action == "previous":
+                        callback_data=Menucallback(level=level, menu_name=menu_name, page=page + 1).pack()))
+            elif menu_name == "previous":
                 row.append(InlineKeyboardButton(text=text,
-                        callback_data=f'previous_{tovar}_{page}'))
-    
-        return keyboard.row(*row).as_markup()
+                        callback_data=Menucallback(level=level, menu_name=menu_name, page=page - 1).pack()))
+
+        keyboard.row(*row)
+        return keyboard.adjust(*sizes).as_markup()

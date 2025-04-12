@@ -1,5 +1,5 @@
 from math import prod
-from sqlalchemy import delete, distinct, select, update
+from sqlalchemy import delete, distinct, select, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.models import Catalog, Admins, Banner, PromocodeUsage, Promokodes, Spam, Users, Cart
 
@@ -43,24 +43,31 @@ async def orm_get_info_pages(session: AsyncSession):
 
 ############### Работа с корзиной ##############
 async def orm_add_to_cart(session: AsyncSession, product_name: str, user_id: int, price: int):
-    tovar = await orm_get_promocode_by_name(session, product_name)
-    query = select(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name)
-    result = await session.execute(query)
-    cart_item = result.scalar_one_or_none()
+    q = select(Catalog).where(Catalog.name == product_name)
+    result = await session.execute(q)
+    tovar = result.scalars().first()
     if tovar is None:
-            return False
-    elif cart_item:
-        cart_item.quantity += 1
-        
-    else:
-        new_cart_item = Cart(user_id=user_id, product_name=product_name, quantity=1, price=price)
-        session.add(new_cart_item)
-
-    if tovar.quantity == 0:
-            await orm_delete_promocode(session, product_name)
-    else:
-        tovar.quantity -=1
+        return 
     
+    w = select(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name)
+    result = await session.execute(w)
+    cart = result.scalars().first()
+    if cart:
+        cart.quantity += 1
+    else:
+        obj = Cart(
+            user_id=user_id,
+            product_name=product_name,
+            quantity=1,
+            price=price
+        )
+        session.add(obj)
+
+    if tovar.quantity > 0:
+        tovar.quantity -= 1
+    else:
+        await orm_delete_promocode(session, product_name)
+
     await session.commit()
 
 
@@ -100,7 +107,9 @@ async def orm_reduce_service_in_cart(session: AsyncSession, user_id: int, produc
     query = select(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name)
     result = await session.execute(query)
     cart = result.scalar()
-    if cart.quantity >= 1:
+    if cart is None:
+        return "cart none"
+    if cart.quantity > 1:
         query = update(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name).values(quantity=cart.quantity - 1)
         tovar.quantity += 1
         await session.execute(query)
