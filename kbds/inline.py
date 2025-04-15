@@ -1,7 +1,7 @@
 from typing import Optional
 from aiogram.filters.callback_data import CallbackData
-from aiogram.types import InlineKeyboardButton, KeyboardButton
-from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
+from aiogram.types import InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 class Menucallback(CallbackData, prefix ="menu"):
     level: int
@@ -10,9 +10,6 @@ class Menucallback(CallbackData, prefix ="menu"):
     tovar: str|None = None
     page: int = 1
     price: Optional[int] = None 
-
-class BUYcallback(CallbackData, prefix = 'cart'):
-    menu_name: str
 
 
 ##################Создание инлайн клавиатуры  ################################################################
@@ -41,37 +38,12 @@ def  get_callback_btns_url(
         keyboard.add(InlineKeyboardButton(text=text, url=url))
 
     return keyboard.adjust(*sizes).as_markup()
-##################Создание  клавиатуры  ################################################################
-def get_keyboard(
-    *,
-    btns: str,
-    placeholder: str = None,
-    request_contact: int = None,
-    request_location: int = None,
-    sizes: tuple[int] = (2,),
-):
-
-    keyboard = ReplyKeyboardBuilder()
-
-    for index, text in enumerate(btns, start=0):
-        
-        if request_contact and request_contact == index:
-            keyboard.add(KeyboardButton(text=text, request_contact=True))
-
-        elif request_location and request_location == index:
-            keyboard.add(KeyboardButton(text=text, request_location=True))
-        else:
-            keyboard.add(KeyboardButton(text=text))
-
-    return keyboard.adjust(*sizes).as_markup(
-            resize_keyboard=True, input_field_placeholder=placeholder)
 ############################################################Главная клавиатура############################################################
-def get_user_main_btns(*, level:int, sizes: tuple[int] = (2,)):
+def get_user_main_btns(*, level:int, sizes: tuple[int] = (1,)):
     keyboard = InlineKeyboardBuilder()
     btns = {
         "Каталог": "catalog",
         "Варианы оплаты": "payment",
-        "История": "history",
         "Корзина":"cart"
         }
     for text, menu_name  in btns.items():
@@ -86,8 +58,6 @@ def get_user_main_btns(*, level:int, sizes: tuple[int] = (2,)):
             
     return keyboard.adjust(*sizes).as_markup()
 
-
-
 ############################################################Клавиатура возвращения на перыдущий лвл############################################################
 def back_kbds(
     *,
@@ -96,7 +66,7 @@ def back_kbds(
 ):
     keyboard = InlineKeyboardBuilder()
     keyboard.add(InlineKeyboardButton(text='Назад',
-                callback_data=Menucallback(level=level -1, menu_name='catalog').pack()))
+                callback_data=Menucallback(level=0, menu_name='main').pack()))
 
     keyboard.adjust(*sizes)
     return keyboard.as_markup()
@@ -131,6 +101,13 @@ def get_user_cart(
             elif menu_name == "previous":
                 row.append(InlineKeyboardButton(text=text,
                         callback_data=Menucallback(level=level, menu_name=menu_name, page=page - 1).pack()))
+        keyboard.add(InlineKeyboardButton(text='Назад',
+                                          callback_data= Menucallback(level=level -1, menu_name='catalog').pack()))
+                
+    else:
+        keyboard.add(InlineKeyboardButton(text='Назад',
+                                          callback_data= Menucallback(level=level -1, menu_name='catalog').pack()))
 
-        keyboard.row(*row)
-        return keyboard.adjust(*sizes).as_markup()
+    keyboard.row(*row)
+    return keyboard.adjust(*sizes).as_markup()
+    

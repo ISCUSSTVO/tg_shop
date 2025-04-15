@@ -3,7 +3,7 @@ from aiogram.filters import StateFilter, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from db.orm_query import (
-    orm_add_Promocode_discount,
+    orm_add_discount_promo,
     orm_get_promocode_by_name,
     orm_change_banner_image,
     orm_get_catalog,
@@ -345,7 +345,7 @@ async def add_usage_promo(message: types.Message, state: FSMContext, session: As
     promocode = data["name"]
     usage  = data["usage"]
 
-    name, discounts, usage = await orm_add_Promocode_discount(session, promocode, discount, usage)
+    name, discounts, usage = await orm_add_discount_promo(session, promocode, discount, usage)
     await state.clear()
 
     # Отправляем изображение вместе с текстом

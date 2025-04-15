@@ -1,7 +1,7 @@
-##################Создание  клавиатуры  ################################################################
 from aiogram.types import KeyboardButton
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
+##################Создание  клавиатуры  ################################################################
 def get_keyboard(
     *,
     btns: str,

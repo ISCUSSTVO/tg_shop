@@ -1,11 +1,11 @@
 import asyncio
 import os
-import time
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from dotenv import find_dotenv, load_dotenv
-from db.engine import create_db, session_maker
 from sqlalchemy.ext.asyncio import AsyncSession
+from db.engine import create_db, session_maker
+
 
 
 load_dotenv(find_dotenv())
@@ -38,7 +38,6 @@ async def add_admins_from_list(session: AsyncSession):
 
 async def on_startup():
     await create_db()
-
     async with session_maker() as session:
         for username in bot.my_admin_list:
             if username not in await orm_get_admins(session):
