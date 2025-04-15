@@ -1,3 +1,4 @@
+from aiogram.fsm.context import FSMContext
 from aiogram.types import InputMediaPhoto
 from sqlalchemy.ext.asyncio import AsyncSession
 from utils.paginator import Paginator
@@ -54,9 +55,28 @@ async def category(session):
         sizes=(2,1))
     return image, kbds
 
-async def promocodes_catalog(session: AsyncSession, game_cat: str, level):
+async def promocodes_catalog(state:FSMContext,session: AsyncSession, game_cat: str, level):
     banner = await orm_get_banner(session, "catalog")
-    promocodes = await orm_get_promocode_by_category(session, game_cat)
+    
+    # Если data отсутствует, создаём пустой словарь
+    if data is None:
+        data = {}
+    state_data = {}
+
+    # Получаем категорию из состояния или из переданных данных
+    if state:
+        state_data = await state.get_data()
+        categ = data.get("category") or state_data.get("category") or state_data.get("last_category")
+    else:
+        categ = data.get("category")
+    
+    # Логирование для отладки
+
+    print(f"Состояние FSM: {state_data}")
+    print(f"Категория: {categ}")
+
+    promocodes = await orm_get_promocode_by_category(session, categ)
+
     image = InputMediaPhoto(media=banner.image, caption="Товары👌:")
     btns = {
         f"{promocode.name}": f"show_promocode_{promocode.name}"
@@ -173,7 +193,6 @@ async def cart(session, level, page: int, user_id: int, menu_name,tovar:str,pric
             pagination_btns=pagination_btns,
             tovar=current_cart.product_name,
         )
-
     return image, kbds
 
 async def get_menu_content(
@@ -181,10 +200,12 @@ async def get_menu_content(
     level: int,
     menu_name: str,
     user_id: int| None = None,
-    game_cat: str = None,
     tovar: str = None,
     page: int | None = None,
-    price: int | None = None,   
+    price: int | None = None, 
+    data: dict | None = None,
+    state: FSMContext | None = None,
+      
 
 ):
     if level == 0:
@@ -194,7 +215,7 @@ async def get_menu_content(
         return await category(session)
 
     elif level == 2:
-        return await promocodes_catalog(session, game_cat, level)
+        return await promocodes_catalog(state=state,session=session,level=level, data=data)
 
     elif level == 3:
         return await payment(session, tovar, user_id)

@@ -13,7 +13,6 @@ load_dotenv(find_dotenv())
 from db.orm_query import orm_add_admin, orm_get_admins
 from midleware.db import DataBaseSession
 
-
 from handlers.admin import admin_router
 from handlers.user import user_router
 
