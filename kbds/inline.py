@@ -41,30 +41,6 @@ def  get_callback_btns_url(
         keyboard.add(InlineKeyboardButton(text=text, url=url))
 
     return keyboard.adjust(*sizes).as_markup()
-##################Создание  клавиатуры  ################################################################
-def get_keyboard(
-    *,
-    btns: str,
-    placeholder: str = None,
-    request_contact: int = None,
-    request_location: int = None,
-    sizes: tuple[int] = (2,),
-):
-
-    keyboard = ReplyKeyboardBuilder()
-
-    for index, text in enumerate(btns, start=0):
-        
-        if request_contact and request_contact == index:
-            keyboard.add(KeyboardButton(text=text, request_contact=True))
-
-        elif request_location and request_location == index:
-            keyboard.add(KeyboardButton(text=text, request_location=True))
-        else:
-            keyboard.add(KeyboardButton(text=text))
-
-    return keyboard.adjust(*sizes).as_markup(
-            resize_keyboard=True, input_field_placeholder=placeholder)
 ############################################################Главная клавиатура############################################################
 def get_user_main_btns(*, level:int, sizes: tuple[int] = (2,)):
     keyboard = InlineKeyboardBuilder()
@@ -80,8 +56,7 @@ def get_user_main_btns(*, level:int, sizes: tuple[int] = (2,)):
         elif menu_name == 'cart':
             keyboard.add(InlineKeyboardButton(text=text, callback_data=Menucallback(level=4, menu_name=menu_name).pack())) 
         else:
-            keyboard.add(InlineKeyboardButton(text=text,
-                                              callback_data =Menucallback(level=level, menu_name=menu_name).pack()))   
+            keyboard.add(InlineKeyboardButton(text=text, callback_data =Menucallback(level=level, menu_name=menu_name).pack()))   
             
             
     return keyboard.adjust(*sizes).as_markup()
@@ -133,4 +108,7 @@ def get_user_cart(
                         callback_data=Menucallback(level=level, menu_name=menu_name, page=page - 1).pack()))
 
         keyboard.row(*row)
+        return keyboard.adjust(*sizes).as_markup()
+    else:
+        keyboard.add(InlineKeyboardButton(text='Назад', callback_data=Menucallback(level=level -1, menu_name='catalog').pack()))
         return keyboard.adjust(*sizes).as_markup()

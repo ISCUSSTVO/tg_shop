@@ -1,3 +1,4 @@
+from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardButton, InputMediaPhoto
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.orm_query import (
@@ -59,10 +60,28 @@ async def category(session):
 
 
 
-
-async def promocodes_catalog(session: AsyncSession, game_cat: str, level):
+async def promocodes_catalog(state: FSMContext, session: AsyncSession, level: int, data: dict | None):
     banner = await orm_get_banner(session, "catalog")
-    promocodes = await orm_get_promocode_by_category(session, game_cat)
+    
+    # Если data отсутствует, создаём пустой словарь
+    if data is None:
+        data = {}
+    state_data = {}
+
+    # Получаем категорию из состояния или из переданных данных
+    if state:
+        state_data = await state.get_data()
+        categ = data.get("category") or state_data.get("category") or state_data.get("last_category")
+    else:
+        categ = data.get("category")
+    
+    # Логирование для отладки
+
+    print(f"Состояние FSM: {state_data}")
+    print(f"Категория: {categ}")
+
+    promocodes = await orm_get_promocode_by_category(session, categ)
+
     image = InputMediaPhoto(media=banner.image, caption="Товары👌:")
     btns = {
         f"{promocode.name}": f"show_promocode_{promocode.name}"
@@ -83,7 +102,7 @@ async def payment(session: AsyncSession, tovar: str, user_id: int, level: int):
         image = InputMediaPhoto(media=banner.image, caption="Промокод не найден")
         kbds = get_callback_btns(
             btns={
-                "Назад": Menucallback(level=level - 2, menu_name="game_catalog").pack()
+                "Назад": Menucallback(level=level - 1, menu_name="catalog").pack()
             }
         )
         return image, kbds
@@ -113,7 +132,7 @@ async def payment(session: AsyncSession, tovar: str, user_id: int, level: int):
             btns={
                 "купить": f"select_{product.name}",
                 "Есть промокод?": "promo",
-                "Назад": Menucallback(level=level - 2, menu_name="game_catalog").pack(),
+                "Назад": Menucallback(level=level - 1, menu_name="catalog").pack(),
             }
         )
     else:
@@ -122,7 +141,7 @@ async def payment(session: AsyncSession, tovar: str, user_id: int, level: int):
                 "купить": f"select_{product.name}",
                 "Есть промокод?": "promo",
                 "Добавить в корзину": f'add_cart_{product.name}_{product_price}',
-                "Назад": Menucallback(level=level - 2, menu_name="game_catalog").pack(),
+                "Назад": Menucallback(level=level - 1, menu_name="catalog").pack(),
             }
         )
 
@@ -181,8 +200,6 @@ async def cart(session, level, page: int, user_id: int, menu_name,tovar:str,pric
             pagination_btns=pagination_btns,
             tovar=current_cart.product_name,
         )
-        kbds.inline_keyboard.append([InlineKeyboardButton(text="Назад", callback_data=Menucallback(level=0, menu_name="main").pack())])
-
     return image, kbds
 
 async def get_menu_content(
@@ -193,7 +210,10 @@ async def get_menu_content(
     game_cat: str = None,
     tovar: str = None,
     page: int | None = None,
-    price: int | None = None,   
+    price: int | None = None, 
+    data: dict | None = None,
+    state: FSMContext | None = None,
+      
 
 ):
     if level == 0:
@@ -203,7 +223,7 @@ async def get_menu_content(
         return await category(session)
 
     elif level == 2:
-        return await promocodes_catalog(session, game_cat, level)
+        return await promocodes_catalog(state=state,session=session,level=level, data=data)
 
     elif level == 3:
         return await payment(session, tovar, user_id,  level = level)
