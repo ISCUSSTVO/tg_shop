@@ -29,7 +29,7 @@ class Catalog(Base):
     __tablename__ = 'promocodes_cat'
 
     id: Mapped[int] = mapped_column(primary_key = True, autoincrement = True)
-    name: Mapped[str] = mapped_column(String(15), unique=True)
+    name: Mapped[str] = mapped_column(String(15))
     promocode: Mapped[str] = mapped_column(String(70), unique=True, nullable=False)
     category: Mapped[str] = mapped_column(String(30), nullable=False)
     price: Mapped[int]  = mapped_column(Integer)

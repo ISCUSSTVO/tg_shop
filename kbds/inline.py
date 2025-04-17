@@ -79,7 +79,7 @@ def get_user_cart(
     pagination_btns: dict | None,
     tovar: str | None,
     price: int | None = None,
-    sizes: tuple[int] = (3,)
+    sizes: tuple[int] = (3,2,2)
 ):
     keyboard = InlineKeyboardBuilder()
     if page:
@@ -100,12 +100,14 @@ def get_user_cart(
             elif menu_name == "previous":
                 row.append(InlineKeyboardButton(text=text,
                         callback_data=Menucallback(level=level, menu_name=menu_name, page=page - 1).pack()))
+        keyboard.add(InlineKeyboardButton(text = "Оформить заказ",
+                                          callback_data= f'select_{tovar}'))
         keyboard.add(InlineKeyboardButton(text='Назад',
-                                          callback_data= Menucallback(level=level -1, menu_name='catalog').pack()))
+                                          callback_data= Menucallback(level=0, menu_name='main').pack()))
                 
     else:
         keyboard.add(InlineKeyboardButton(text='Назад',
-                                          callback_data= Menucallback(level=level -1, menu_name='catalog').pack()))
+                                          callback_data= Menucallback(level=0, menu_name='main').pack()))
 
     keyboard.row(*row)
     return keyboard.adjust(*sizes).as_markup()

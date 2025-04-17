@@ -64,8 +64,6 @@ async def orm_add_to_cart(session: AsyncSession, product_name: str, user_id: int
 
     if tovar.quantity > 0:
         tovar.quantity -= 1
-    else:
-        await orm_delete_promocode(session, product_name)
 
     await session.commit()
 
@@ -106,16 +104,24 @@ async def orm_reduce_service_in_cart(session: AsyncSession, user_id: int, produc
 
 ############### Работа с каталогами ##############
 async def orm_add_Promocode(session: AsyncSession, data: dict):
-    chek_promocode = await orm_get_promocode_by_name(session, data["name"])
+    tovar = await orm_get_promocode_by_name(session, data["name"])
+    name = data["name"]
+    promo = data["promocode"] 
     
-    if chek_promocode:
-        query = update(Catalog).where(Catalog.name == data["name"]).values(
-            quantity=Catalog.quantity + 1,
-            price=data["price"],
-            discount=data["discount"]
+    if tovar is not None:
+        obj = Catalog(
+            name=name,
+            category=tovar.category,
+            promocode= promo,
+            price=tovar.price,
+            discount=tovar.discount,
+            quantity=1
         )
-        await session.execute(query)
+        session.add(obj)
+        await session.commit()
+        return name,promo, tovar.price
     else:
+        price = data["price"]
         obj = Catalog(
             name=data["name"],
             category=data["category"],
@@ -124,10 +130,10 @@ async def orm_add_Promocode(session: AsyncSession, data: dict):
             discount=data["discount"],
             quantity=1
         )
-        session.add(obj)
-    
-    await session.commit()
-    return data["name"], data["promocode"], data["price"]
+        session.add(obj) 
+        await session.commit()
+        return name,promo,price
+
 
 async def orm_get_catalog(session: AsyncSession):
     query = select(Catalog)
@@ -151,6 +157,11 @@ async def orm_get_promocode_by_name(session: AsyncSession, promocode: str):
     query = select(Catalog).where(Catalog.name == promocode)
     result = await session.execute(query)
     return result.scalars().first()
+
+async def orm_get_all_promocodes_by_name(session: AsyncSession, promocode: str):
+    query = select(Catalog).where(Catalog.name == promocode)
+    result = await session.execute(query)
+    return result.scalars().all()
 
 
 

@@ -242,49 +242,50 @@ async def add_account(callback: types.CallbackQuery, state: FSMContext):
 
 
 @admin_router.message(PlussAccount.name)
-async def add_game_name(message: types.Message, state: FSMContext):
+async def add_game_name(message: types.Message, state: FSMContext,session:AsyncSession):
     await state.update_data(name=message.text)
-    await message.answer("Введи промокод")
-    await state.set_state(PlussAccount.promocode)
-
-
-@admin_router.message(PlussAccount.promocode)
-async def add_promo(message: types.Message, state: FSMContext):
-    await state.update_data(promocode=message.text)
-    await message.answer("Введи цену")
-    await state.set_state(PlussAccount.price)
-
-
-@admin_router.message(PlussAccount.price)
-async def add_priceacc(message: types.Message, state: FSMContext):
-    await state.update_data(price=message.text)
-    await message.answer("Введи категорию ")
-    await state.set_state(PlussAccount.categories)
-
+    tovar = await orm_get_promocode_by_name(session, message.text)
+    if tovar is not None:
+        await message.answer("Введи промокод")
+        await state.set_state(PlussAccount.promocode)
+    else:    
+        await message.answer("Введи категорию")
+        await state.set_state(PlussAccount.categories)
 
 @admin_router.message(PlussAccount.categories)
 async def add_categories(message: types.Message, state: FSMContext):
     await state.update_data(category=message.text)
+    await message.answer("Введи цену")
+    await state.set_state(PlussAccount.price)
+
+@admin_router.message(PlussAccount.price)
+async def add_priceacc(message: types.Message, state: FSMContext):
+    await state.update_data(price=message.text)
     await message.answer("Введи скидку без знака %")
     await state.set_state(PlussAccount.discount)
 
 
 @admin_router.message(PlussAccount.discount)
-async def add_discount(
-    message: types.Message, state: FSMContext, session: AsyncSession
-):
+async def add_discount(message: types.Message, state: FSMContext):
     await state.update_data(discount=message.text)
+    await message.answer("Введи промокод")
+    await state.set_state(PlussAccount.promocode)
+
+@admin_router.message(PlussAccount.promocode)
+async def add_promo(message: types.Message, state: FSMContext,session: AsyncSession):
+    await state.update_data(promocode=message.text)
     data = await state.get_data()
-    name, promocode, price = await orm_add_Promocode(session, data)
+    q = await orm_add_Promocode(session, data)
+    name , promocode, price = q
     await state.clear()
 
-    # Отправляем изображение вместе с текстом
     await message.answer(
-        f"Код добавлен\nНазвание: {name}\n{price} ₽\n\nПромокод: {promocode}",
+        f"Код добавлен\nНазвание: {name}\nЦена: {price} ₽\n\nПромокод: {promocode}",
         reply_markup=get_callback_btns(
             btns={"Ещё код": "AddItem", "Админ меню": "admin"}
         ),
     )
+
 
 
 @admin_router.callback_query(F.data == "delItem")

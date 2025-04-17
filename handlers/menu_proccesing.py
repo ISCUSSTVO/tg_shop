@@ -55,26 +55,20 @@ async def category(session):
         sizes=(2,1))
     return image, kbds
 
-async def promocodes_catalog(state:FSMContext,session: AsyncSession, game_cat: str, level):
+async def promocodes_catalog(state, session, level,game_cat):
     banner = await orm_get_banner(session, "catalog")
     
-    # Если data отсутствует, создаём пустой словарь
-    if data is None:
-        data = {}
-    state_data = {}
 
     # Получаем категорию из состояния или из переданных данных
-    if state:
-        state_data = await state.get_data()
-        categ = data.get("category") or state_data.get("category") or state_data.get("last_category")
-    else:
-        categ = data.get("category")
-    
+    #if state:
+    #    state_data = await state.get_data()
+    #    categ = data.get("category") or state_data.get("category") or state_data.get("last_category")
+    #else:
+    #    categ = data.get("category")
+    #
     # Логирование для отладки
 
-    print(f"Состояние FSM: {state_data}")
-    print(f"Категория: {categ}")
-
+    categ = game_cat
     promocodes = await orm_get_promocode_by_category(session, categ)
 
     image = InputMediaPhoto(media=banner.image, caption="Товары👌:")
@@ -122,23 +116,14 @@ async def payment(session: AsyncSession, tovar: str, user_id: int):
         caption = f"{product.name}\nЦена: {product.price}₽"
 
     image = InputMediaPhoto(media=banner.image, caption=caption, parse_mode="MarkdownV2")
-    if  user is None or product.name in list:
-        kbds = get_callback_btns(
-            btns={
-                "купить": f"select_{product.name}",
-                "Есть промокод?": "promo",
-                "Назад": Menucallback(level=2, menu_name="game_catalog").pack(),
-            }
-        )
-    else:
-        kbds = get_callback_btns(
-            btns={
-                "купить": f"select_{product.name}",
-                "Есть промокод?": "promo",
-                "Добавить в корзину": f'add_cart_{product.name}_{product_price}',
-                "Назад": Menucallback(level=2, menu_name="game_catalog").pack(),
-            }
-        )
+    kbds = get_callback_btns(
+        btns={
+            "купить": f"select_{product.name}",
+            "Есть промокод?": "promo",
+            "Добавить в корзину": f'add_cart_{product.name}_{product_price}',
+            "Назад": Menucallback(level=2, menu_name="game_catalog").pack(),
+        }
+    )
 
     return image, kbds
 
@@ -154,6 +139,8 @@ async def cart(session, level, page: int, user_id: int, menu_name,tovar:str,pric
             page -= 1
     elif menu_name == "increment":
         await orm_add_to_cart(session, tovar, user_id, price)
+    elif menu_name == "oder":
+        ...
     
     banner = await orm_get_banner(session, "cart")
     carts = await orm_get_cart(session, user_id)
@@ -203,7 +190,7 @@ async def get_menu_content(
     tovar: str = None,
     page: int | None = None,
     price: int | None = None, 
-    data: dict | None = None,
+    game_cat: str | None = None,
     state: FSMContext | None = None,
       
 
@@ -215,7 +202,7 @@ async def get_menu_content(
         return await category(session)
 
     elif level == 2:
-        return await promocodes_catalog(state=state,session=session,level=level, data=data)
+        return await promocodes_catalog(state=state,session=session,level=level, game_cat=game_cat)
 
     elif level == 3:
         return await payment(session, tovar, user_id)
