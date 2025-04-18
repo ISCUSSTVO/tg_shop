@@ -275,14 +275,15 @@ async def add_discount(message: types.Message, state: FSMContext):
 async def add_promo(message: types.Message, state: FSMContext,session: AsyncSession):
     await state.update_data(promocode=message.text)
     data = await state.get_data()
-    q = await orm_add_Promocode(session, data)
+    q = await  orm_add_Promocode(session, data)
     name , promocode, price = q
     await state.clear()
 
     await message.answer(
         f"Код добавлен\nНазвание: {name}\nЦена: {price} ₽\n\nПромокод: {promocode}",
         reply_markup=get_callback_btns(
-            btns={"Ещё код": "AddItem", "Админ меню": "admin"}
+            btns={"Ещё код": "AddItem", 
+                  "Админ меню": "admin"}
         ),
     )
 

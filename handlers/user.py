@@ -12,11 +12,12 @@ from db.orm_query import (
     orm_get_all_promocodes_by_name,
     orm_get_promo_by_name,
     orm_get_promocode_by_name,
+    orm_get_promocode_by_name_with_quantity,
+    orm_get_promocode_by_name_with_quantity_and_in_cart,
     orm_get_promocode_usage,
     orm_get_user_by_userid,
     orm_get_banner,
     orm_use_promocode,
-    orm_delete_promocode,
 )
 
 from handlers.menu_proccesing import (
@@ -52,7 +53,7 @@ async def start(message: types.Message, session: AsyncSession):
 
 
 @user_router.callback_query(F.data == "menu")
-@user_router.message(F.text.lower().contains("menu") | F.text.lower().contains("меню"))
+@user_router.message(F.text.lower().contains("main") | F.text.lower().contains("меню"))
 async def menu(message: types.Message | types.CallbackQuery, session: AsyncSession):
     is_callback = isinstance(message, types.CallbackQuery)
 
@@ -102,26 +103,22 @@ async def user_menu(
 @user_router.callback_query(F.data.startswith("add_cart_"))
 async def add_cart(callback_query: types.CallbackQuery, session: AsyncSession):
     data = callback_query.data.split("_")
-    name = data[-2]
-    price = data[-1]
-    promo = await orm_get_all_promocodes_by_name(session, name)
+    name = data[-4]
+    price = int(data[-3])
+    quant = int(data[-2])
+    in_cart = int(data[-1])
+    promoc = await orm_get_promocode_by_name_with_quantity_and_in_cart(session, name,1,0)
+    if promoc is  None or promoc.quantity == 0 and promoc.in_cart == 1:
+        await callback_query.answer("Товара нет в наличии", show_alert=True)
+    elif promoc.quantity == 1 and promoc.in_cart == 0:
+        await orm_add_to_cart(session, promoc.name,callback_query.from_user.id,price,quant,in_cart)
+        await callback_query.answer("Товара добавлен в корзину", show_alert=True)
+    
+    media, kbds = await payment(session, name, callback_query.from_user.id)
+    await callback_query.message.edit_media(media=media, reply_markup=kbds)
+        
 
-    all_tovars = [promocodes for promocodes in promo]
-    if not all_tovars:
-        await callback_query.answer("Товара нет в наличии")
-        for tovar in promo:
-            await orm_delete_promocode(session, tovar.name)
-        image, kbds = await payment(session, name, callback_query.from_user.id)
-        await callback_query.message.edit_media(media=image, reply_markup=kbds)
-    else:
-        select_prod = all_tovars[0]
-
-        await orm_add_to_cart(
-            session, select_prod.name, callback_query.from_user.id, price=select_prod.price
-        )
-        select_prod.quantity -= 1
-        await session.commit()
-        await callback_query.answer("Товар добавлен в корзину")
+        
 
 
 @user_router.callback_query(F.data.startswith("show_category_"))

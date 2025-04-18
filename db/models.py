@@ -35,6 +35,7 @@ class Catalog(Base):
     price: Mapped[int]  = mapped_column(Integer)
     discount: Mapped[int] = mapped_column(Integer)
     quantity: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    in_cart: Mapped[bool] = mapped_column(Integer, default=0, nullable=False)
 
 
 ##################таблица банеры ################################################################
@@ -72,3 +73,4 @@ class Cart(Base):
     product_name: Mapped[str] = mapped_column(String(15), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     price: Mapped[int] = mapped_column(Integer, nullable=False)
+    promo: Mapped[str] = mapped_column(String(70), unique=True, nullable=False)
