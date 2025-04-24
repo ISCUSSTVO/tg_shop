@@ -4,18 +4,18 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.orm_query import (
-    orm_add_discount_promo,
+    orm_add_discount_promocode,
     orm_get_promocode_by_name,
     orm_change_banner_image,
-    orm_get_catalog,
+    orm_get_all_catalog_items,
     orm_get_users,
     orm_delete_promocode,
     orm_get_info_pages,
-    orm_get_spam,
-    orm_update_catalog,
-    orm_add_message_spam,
-    orm_add_Promocode,
-    orm_del_spam,
+    orm_get_all_spam_messages,
+    orm_update_catalog_item,
+    orm_add_spam_message,
+    orm_add_promocode_to_catalog,
+    orm_delete_spam_message,
 )
 
 from filters.chat_filter import ChatTypeFilter, IsAdmin
@@ -92,7 +92,7 @@ async def create_msg(callback: types.CallbackQuery, state: FSMContext):
 
 @admin_router.message(CreateMessage.msgg)
 async def createa_spam(message: types.Message, session: AsyncSession):
-    await orm_add_message_spam(session, message.text)
+    await orm_add_spam_message(session, message.text)
 
     await message.answer(
         f"Сообщение принято\n{message.text}",
@@ -105,7 +105,7 @@ async def createa_spam(message: types.Message, session: AsyncSession):
 
 @admin_router.callback_query(F.data == ("choose_msg"))
 async def redo_msg(callback: types.CallbackQuery, session: AsyncSession):
-    spam_messages = await orm_get_spam(session)
+    spam_messages = await orm_get_all_spam_messages(session)
     if not spam_messages:
         await callback.message.answer(
             "Сообщений нет", reply_markup=get_callback_btns(btns={"В меню": "admin"})
@@ -124,7 +124,7 @@ async def redo_msg(callback: types.CallbackQuery, session: AsyncSession):
 @admin_router.callback_query(F.data.startswith("del_msg_"))
 async def del_msg(callback: types.CallbackQuery, session: AsyncSession):
     sms = callback.data.split("_")[-1]
-    await orm_del_spam(session, sms)
+    await orm_delete_spam_message(session, sms)
     await session.commit()
     await callback.message.answer("Сообщение удалено")
     await callback.answer()
@@ -140,7 +140,7 @@ async def digit(callback: types.CallbackQuery, state: FSMContext):
 @admin_router.message(CreateMessage.digit)
 async def read_msg(message: types.Message, session: AsyncSession, bot: Bot):
     users = await orm_get_users(session)
-    msg_list = await orm_get_spam(session)
+    msg_list = await orm_get_all_spam_messages(session)
 
     if msg_list:
         msg = msg_list[0] if isinstance(msg_list, list) else msg_list
@@ -275,7 +275,7 @@ async def add_discount(message: types.Message, state: FSMContext):
 async def add_promo(message: types.Message, state: FSMContext,session: AsyncSession):
     await state.update_data(promocode=message.text)
     data = await state.get_data()
-    q = await  orm_add_Promocode(session, data)
+    q = await  orm_add_promocode_to_catalog(session, data)
     name , promocode, price = q
     await state.clear()
 
@@ -291,7 +291,7 @@ async def add_promo(message: types.Message, state: FSMContext,session: AsyncSess
 
 @admin_router.callback_query(F.data == "delItem")
 async def show_all_accounts(cb: types.CallbackQuery, session: AsyncSession):
-    account_list = await orm_get_catalog(session)
+    account_list = await orm_get_all_catalog_items(session)
 
     if account_list:
         for account in account_list:
@@ -348,7 +348,7 @@ async def add_usage_promo(message: types.Message, state: FSMContext, session: As
     promocode = data["name"]
     usage  = data["usage"]
 
-    name, discounts, usage = await orm_add_discount_promo(session, promocode, discount, usage)
+    name, discounts, usage = await orm_add_discount_promocode(session, promocode, discount, usage)
     await state.clear()
 
     # Отправляем изображение вместе с текстом
@@ -366,7 +366,8 @@ async def add_usage_promo(message: types.Message, state: FSMContext, session: As
 @admin_router.callback_query(F.data.startswith("delacc_"))
 async def delete_game(callback: types.CallbackQuery, session: AsyncSession):
     game_name = callback.data.split("_")[1]
-    await orm_delete_promocode(session, game_name)
+    tovar = await orm_get_promocode_by_name(session, game_name)
+    await orm_delete_promocode(session, tovar.name,tovar.id)
     await callback.answer("Код удален")
     await callback.message.delete()
 
@@ -439,7 +440,7 @@ async def update_account_field(
     user_data = await state.get_data()
     account_name = user_data.get("account_name")
 
-    await orm_update_catalog(session, account_name, field_name, new_value)
+    await orm_update_catalog_item(session, account_name, field_name, new_value)
     await session.commit()
 
     await message.answer(

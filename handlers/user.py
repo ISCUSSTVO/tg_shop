@@ -9,13 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.orm_query import (
     orm_add_to_cart,
     orm_add_user,
-    orm_get_all_promocodes_by_name,
-    orm_get_promo_by_name,
     orm_get_promocode_by_name,
-    orm_get_promocode_by_name_with_quantity,
-    orm_get_promocode_by_name_with_quantity_and_in_cart,
-    orm_get_promocode_usage,
-    orm_get_user_by_userid,
+    orm_get_discount_promocode_by_promocode,
+    orm_get_promocode_by_name_with_quantity_and_cart_status,
+    orm_get_user_promocode_usage,
+    orm_get_user_by_id,
     orm_get_banner,
     orm_use_promocode,
 )
@@ -41,7 +39,7 @@ sent_msg = set()
 @user_router.message(CommandStart())
 async def start(message: types.Message, session: AsyncSession):
     banner = await orm_get_banner(session, "start")
-    if not await orm_get_user_by_userid(session, message.from_user.id):
+    if not await orm_get_user_by_id(session, message.from_user.id):
         await orm_add_user(session, message.from_user.id)
     await message.answer_photo(
         photo=banner.image,
@@ -87,6 +85,8 @@ async def user_menu(
         tovar=callback_data.tovar,
         page=callback_data.page,
         price=callback_data.price,
+        promo=callback_data.promocode,
+        
     )
     if result is None:
         await callback.answer("Не удалось получить данные.", show_alert=True)
@@ -107,7 +107,7 @@ async def add_cart(callback_query: types.CallbackQuery, session: AsyncSession):
     price = int(data[-3])
     quant = int(data[-2])
     in_cart = int(data[-1])
-    promoc = await orm_get_promocode_by_name_with_quantity_and_in_cart(session, name,1,0)
+    promoc = await orm_get_promocode_by_name_with_quantity_and_cart_status(session, name,1,0)
     if promoc is  None or promoc.quantity == 0 and promoc.in_cart == 1:
         await callback_query.answer("Товара нет в наличии", show_alert=True)
     elif promoc.quantity == 1 and promoc.in_cart == 0:
@@ -239,8 +239,8 @@ async def get_promocode(
     message: types.Message, session: AsyncSession, state: FSMContext
 ):
     promo = message.text
-    result = await orm_get_promo_by_name(session, promo)
-    res = await orm_get_promocode_usage(session, message.from_user.id)
+    result = await orm_get_discount_promocode_by_promocode(session, promo)
+    res = await orm_get_user_promocode_usage(session, message.from_user.id)
     data = await state.get_data()
     level = data.get("level", 3)
     user_id = data.get("user_id", message.from_user.id)
@@ -274,8 +274,6 @@ async def get_promocode(
         await message.answer_photo(
             photo=media.media, caption=media.caption, reply_markup=kbds
         )
-
-
 @user_router.message()
 async def null_message(message: types.Message, session: AsyncSession):
     text = message.text.strip().lower()
@@ -302,6 +300,7 @@ async def null_message(message: types.Message, session: AsyncSession):
             menu_name="cart",
             tovar=None,
             price=None,
+            promo=None
         )
         await message.answer_photo(
             photo=image.media, caption=image.caption, reply_markup=kbds

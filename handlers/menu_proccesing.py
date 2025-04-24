@@ -4,17 +4,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from utils.paginator import Paginator
 from db.orm_query import (
     orm_add_to_cart,
+    orm_count_promocodes,
     orm_get_cart,
     orm_get_cart_on_code,
     orm_delete_from_cart,
     orm_get_banner,
-    orm_get_category_catalog,
-    orm_get_next_promocode_by_name,
+    orm_get_catalog_categories,
+    orm_get_next_available_promocode,
     orm_get_promocode_by_category,
     orm_get_promocode_by_name,
-    orm_get_promocode_by_name_with_quantity,
-    orm_get_promocode_usage,
-    orm_reduce_service_in_cart,
+    orm_get_available_promocode,
+    orm_get_user_promocode_usage,
+    orm_decrement_cart_item,
 )
 from kbds.inline import (
     Menucallback,
@@ -44,7 +45,7 @@ async def main(session, level, menu_name):
 
 async def category(session):
     banner = await orm_get_banner(session, "catalog")
-    promocodes = await orm_get_category_catalog(session)
+    promocodes = await orm_get_catalog_categories(session)
     image = InputMediaPhoto(
         media=banner.image,
         caption="Выбирай что хочешь😊:",
@@ -59,16 +60,6 @@ async def category(session):
 
 async def promocodes_catalog(state, session, level,game_cat):
     banner = await orm_get_banner(session, "catalog")
-    
-
-    # Получаем категорию из состояния или из переданных данных
-    #if state:
-    #    state_data = await state.get_data()
-    #    categ = data.get("category") or state_data.get("category") or state_data.get("last_category")
-    #else:
-    #    categ = data.get("category")
-    #
-    # Логирование для отладки
 
     categ = game_cat
     promocodes = await orm_get_promocode_by_category(session, categ)
@@ -86,28 +77,26 @@ async def promocodes_catalog(state, session, level,game_cat):
 
 async def payment(session: AsyncSession, tovar: str, user_id: int):
     banner = await orm_get_banner(session, "catalog")
+    promocodes = await orm_get_promocode_by_name(session, tovar)
 
     # Получаем текущий товар
-    product = await orm_get_promocode_by_name_with_quantity(session, tovar)
+    product = await orm_get_available_promocode(session, tovar)
     if product is None:
         # Если товар не найден
         image = InputMediaPhoto(media=banner.image, caption="Товар не найден")
         kbds = get_callback_btns(
-            btns={
-                "Назад": Menucallback(level=2, menu_name="game_catalog").pack()
-            }
-        )
+            btns =  {"Назад": f"show_category_{promocodes.category}"})
         return image, kbds
 
     # Проверяем, доступен ли товар
     if product.quantity == 0 and product.in_cart == 1:
         # Если текущий товар недоступен, ищем следующий товар с таким же именем
-        next_product = await orm_get_next_promocode_by_name(session, tovar)
+        next_product = await orm_get_next_available_promocode(session, tovar)
         if next_product is None or next_product.quantity == 0 or next_product.in_cart == 1:
             image = InputMediaPhoto(media=banner.image, caption="Товар недоступен")
             kbds = get_callback_btns(
                 btns={
-                    "Назад": Menucallback(level=2, menu_name="game_catalog").pack()
+                    "Назад": f"show_category_{promocodes.category}",
                 }
             )
             return image, kbds
@@ -116,9 +105,9 @@ async def payment(session: AsyncSession, tovar: str, user_id: int):
 
     # Применяем скидку продукта
     product_price = product.price - (product.price * product.discount // 100)
-
+    quant = await orm_count_promocodes(session,product.name)
     # Получаем активный промокод пользователя
-    user_promocode_usage = await orm_get_promocode_usage(session, user_id)
+    user_promocode_usage = await orm_get_user_promocode_usage(session, user_id)
     if user_promocode_usage is not None:
         promocode_discount = await orm_get_promocode_by_name(session, user_promocode_usage.promocode)
         if promocode_discount:
@@ -126,16 +115,15 @@ async def payment(session: AsyncSession, tovar: str, user_id: int):
 
     # Формируем описание продукта с учетом скидок
     if product.discount != 0 or (user_promocode_usage and promocode_discount):
-        caption = f"{product.name}\nЦена: ~{product.price}₽~ {product_price}₽\nОсталось: {product.quantity}\nВ корзине: {product.in_cart}"
+        caption = f"{product.name}\nЦена: ~{product.price}₽~ {product_price}₽\nОсталось: {str(quant)}\n"
     else:
-        caption = f"{product.name}\nЦена: {product.price}₽\nОсталось: {product.quantity}\nВ корзине: {product.in_cart}"
+        caption = f"{product.name}\nЦена: {product.price}₽\nОсталось: {str(quant)}"
 
-    # Формируем кнопки
     btns = {
         "купить": f"select_{product.name}",
         "Есть промокод?": "promo",
         "Добавить в корзину": f'add_cart_{product.name}_{product_price}_{product.quantity}_{product.in_cart}',
-        "Назад": Menucallback(level=2, menu_name="game_catalog").pack(),
+        "Назад": f"show_category_{promocodes.category}"
     }
 
 
@@ -146,17 +134,17 @@ async def payment(session: AsyncSession, tovar: str, user_id: int):
     return image, kbds
 
 
-async def cart(session, level, page: int, user_id: int, menu_name,tovar:str,price):
+async def cart(session, level, page: int, user_id: int, menu_name,tovar:str,price, promo):
     if menu_name == "delete":
-        await orm_delete_from_cart(session, user_id, tovar)
+        await orm_delete_from_cart(session, user_id, tovar, promo)
         if page > 1:
             page -= 1
     elif menu_name == "decrement":
-        is_cart = await orm_reduce_service_in_cart(session, user_id, tovar)
+        is_cart = await orm_decrement_cart_item(session, user_id, tovar,promo)
         if page > 1 and not is_cart:
             page -= 1
     elif menu_name == "increment":
-        await orm_add_to_cart(session, tovar, user_id, price)
+        await orm_add_to_cart(session, tovar, user_id, price,1,0)
     
     banner = await orm_get_banner(session, "cart")
     carts = await orm_get_cart(session, user_id)
@@ -195,6 +183,9 @@ async def cart(session, level, page: int, user_id: int, menu_name,tovar:str,pric
             page=page,
             pagination_btns=pagination_btns,
             tovar=current_cart.product_name,
+            price=current_cart.price,
+            promocode=current_cart.promo,
+            
         )
     return image, kbds
 
@@ -208,6 +199,7 @@ async def get_menu_content(
     price: int | None = None, 
     game_cat: str | None = None,
     state: FSMContext | None = None,
+    promo: str | None = None,
       
 
 ):
@@ -224,4 +216,4 @@ async def get_menu_content(
         return await payment(session, tovar, user_id)
     
     elif level == 4:
-        return await cart(session, level=level, page=page, user_id=user_id,menu_name=menu_name,tovar=tovar,price=price)
+        return await cart(session, level=level, page=page, user_id=user_id,menu_name=menu_name,tovar=tovar,price=price,promo=promo)
