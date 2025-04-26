@@ -9,6 +9,7 @@ from db.orm_query import (
     orm_get_promocode_by_name,
     orm_change_banner_image,
     orm_get_all_catalog_items,
+    orm_get_promocode_by_name1,
     orm_get_users,
     orm_delete_promocode,
     orm_get_info_pages,
@@ -284,7 +285,7 @@ async def add_catalog_item(callback: types.CallbackQuery, state: FSMContext):
 @admin_router.message(PlussAccount.name)
 async def add_item_name(message: types.Message, state: FSMContext,session:AsyncSession):
     await state.update_data(name=message.text)
-    tovar = await orm_get_promocode_by_name(session, message.text)
+    tovar = await orm_get_promocode_by_name1(session, message.text)
     if tovar is not None:
         await message.answer("Введи промокод")
         await state.set_state(PlussAccount.code)

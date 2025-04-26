@@ -82,8 +82,6 @@ async def user_menu(
         user_id=callback.from_user.id,
         tovar=callback_data.tovar,
         page=callback_data.page,
-        price=callback_data.price,
-        promo=callback_data.promocode,
         
     )
     if result is None:
@@ -101,19 +99,16 @@ async def user_menu(
 @user_router.callback_query(F.data.startswith("add_cart_"))
 async def add_cart(callback_query: types.CallbackQuery, session: AsyncSession):
     data = callback_query.data.split("_")
-    name = data[-4]
-    tovar = await orm_get_promocode_by_name(session,name)
-    #price = int(data[-3])
-    #quant = int(data[-2])
-    #in_cart = int(data[-1])
-    #promoc = await orm_get_promocode_by_name_with_quantity_and_cart_status(session, name,1,0)
-    #if promoc is  None or promoc.quantity == 0 and promoc.in_cart == 1:
-    #    await callback_query.answer("Товара нет в наличии", show_alert=True)
-    #elif promoc.quantity == 1 and promoc.in_cart == 0:
-    await orm_add_to_cart(session, tovar.id, )
-    await callback_query.answer("Товара добавлен в корзину", show_alert=True)
-    
-    media, kbds = await payment(session, name, callback_query.from_user.id)
+    prod_id = data[-2]
+    prod_name = data[-1]
+    tovar = await orm_get_promocode_by_name(session,prod_id)
+    await orm_add_to_cart(session, prod_id, callback_query.from_user.id)
+    if not tovar:
+        await callback_query.answer("Товара закончился", show_alert=True)
+    else: 
+        await callback_query.answer("Товара добавлен в корзину", show_alert=True)
+
+    media, kbds = await payment(session, prod_id, callback_query.from_user.id)
     await callback_query.message.edit_media(media=media, reply_markup=kbds)
         
 
@@ -121,9 +116,9 @@ async def add_cart(callback_query: types.CallbackQuery, session: AsyncSession):
 
 
 @user_router.callback_query(F.data.startswith("show_category_"))
-async def process_show_cats(callback_query: types.CallbackQuery, session: AsyncSession,state: FSMContext):
+async def process_show_cats(callback_query: types.CallbackQuery, session: AsyncSession):
     game_cat = callback_query.data.split("_")[-1]
-    media, kbds = await promocodes_catalog(state,session, level=2,game_cat=game_cat)
+    media, kbds = await promocodes_catalog(session, level=2,game_cat=game_cat)
     await callback_query.message.edit_media(media=media, reply_markup=kbds)
     await callback_query.answer()
 
@@ -133,6 +128,7 @@ async def process_show_promocodes(
     callback_query: types.CallbackQuery, session: AsyncSession
 ):
     tovar = callback_query.data.split("_")[-1]
+    print("tovar",tovar)
     media, kbds = await payment(session, tovar, callback_query.from_user.id)
     await callback_query.message.edit_media(media=media, reply_markup=kbds)
     await callback_query.answer()
@@ -140,8 +136,8 @@ async def process_show_promocodes(
 
 @user_router.callback_query(F.data.startswith("select_"))
 async def purchase(callback: types.CallbackQuery, session: AsyncSession):
-    promo = callback.data.split("_")[-1]
-    promocode = await orm_get_promocode_by_name(session, promo)
+    catalog_id = callback.data.split("_")[-1]
+    promocode = await orm_get_promocode_by_name(session, catalog_id)
     if promocode.discount != 0:
         price = promocode.price - promocode.price * promocode.discount // 100
     else:
@@ -151,7 +147,7 @@ async def purchase(callback: types.CallbackQuery, session: AsyncSession):
     data = {
         "user_id": callback.from_user.id,
         "service": "offline_activation",
-        "game_name": promo,
+        "game_name": promocode.name,
     }
     payload = json.dumps(data)
 
@@ -273,37 +269,35 @@ async def get_promocode(
         await message.answer_photo(
             photo=media.media, caption=media.caption, reply_markup=kbds
         )
+
 @user_router.message()
 async def null_message(message: types.Message, session: AsyncSession):
-    if ~F.photo:
-        text = message.text.strip().lower()
-        if "тг" in text:
-            await message.reply(
-                "Ссылочка внизу ⬇️",
-                reply_markup=get_callback_btns_url(
-                    btns={"Тг канал": "https://t.me/promokodiciq"}
-                ),
-            )
-        elif "отзывы" in text:
-            await message.reply(
-                "Ссылочка внизу ⬇️",
-                reply_markup=get_callback_btns_url(
-                    btns={"Отзывы": "https://t.me/promokodiciq"}
-                ),
-            )
-        elif "корзина" in text or "cart" in text:
-            image, kbds = await cart(
-                session,
-                level=4,
-                page=1,
-                user_id=message.from_user.id,
-                menu_name="cart",
-                tovar=None,
-                price=None,
-                promo=None
-            )
-            await message.answer_photo(
-                photo=image.media, caption=image.caption, reply_markup=kbds
-            )
+    text = message.text.strip().lower()
+    if "тг" in text:
+        await message.reply(
+            "Ссылочка внизу ⬇️",
+            reply_markup=get_callback_btns_url(
+                btns={"Тг канал": "https://t.me/promokodiciq"}
+            ),
+        )
+    elif "отзывы" in text:
+        await message.reply(
+            "Ссылочка внизу ⬇️",
+            reply_markup=get_callback_btns_url(
+                btns={"Отзывы": "https://t.me/promokodiciq"}
+            ),
+        )
+    elif "корзина" in text or "cart" in text:
+        image, kbds = await cart(
+            session,
+            level=4,
+            page=1,
+            user_id=message.from_user.id,
+            menu_name="cart",
+            tovar=None,
+        )
+        await message.answer_photo(
+            photo=image.media, caption=image.caption, reply_markup=kbds
+        )
     else:
         await message.reply("напиши старт")

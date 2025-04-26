@@ -1,5 +1,5 @@
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey, Integer, SmallInteger, String, DateTime,  Text, func
+from sqlalchemy import JSON, ForeignKey, Integer, SmallInteger, String, DateTime,  Text, func
 
 class Base(DeclarativeBase):
     created: Mapped[DateTime] = mapped_column(DateTime, default = func.now())
@@ -34,7 +34,6 @@ class Catalog(Base):
     price: Mapped[int] = mapped_column(Integer)
     discount: Mapped[int] = mapped_column(Integer)
     quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    in_cart: Mapped[bool] = mapped_column(Integer, default=1, nullable=False)
 
     # Связь с таблицей AllCodes
     codes: Mapped[list["AllCodes"]] = relationship(
@@ -88,7 +87,7 @@ class Cart(Base):
     product_name: Mapped[str] = mapped_column(String(15), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     price: Mapped[int] = mapped_column(Integer, nullable=False)
-    catalog_id: Mapped[int] = mapped_column(Integer, nullable= False)
+    codes: Mapped[list[int]] = mapped_column(JSON, nullable=False, default=[])  # Список code_id
 
 
 

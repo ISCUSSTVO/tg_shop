@@ -7,10 +7,8 @@ class Menucallback(CallbackData, prefix ="menu"):
     level: int
     menu_name: str
     game_cat: Optional[str] = None 
-    tovar: str|None = None
+    tovar: int|None = None
     page: int = 1
-    price: Optional[int] = None 
-    promocode: Optional[str] = None
 
 
 ##################Создание инлайн клавиатуры  ################################################################
@@ -78,19 +76,17 @@ def get_user_cart(
     level: int,
     page: int | None,
     pagination_btns: dict | None,
-    tovar: str | None,
-    price: int | None = None,
-    promocode: str | None = None,
+    tovar: int | None,
     sizes: tuple[int] = (3,2,2)
 ):
     keyboard = InlineKeyboardBuilder()
     if page:
         keyboard.add(InlineKeyboardButton(text='Удалить',
-                    callback_data=Menucallback(level=level, menu_name='delete', tovar=tovar, page=page,promocode = promocode).pack()))
+                    callback_data=Menucallback(level=level, menu_name='delete', tovar=tovar, page=page).pack()))
         keyboard.add(InlineKeyboardButton(text='-1',
-                    callback_data=Menucallback(level=level, menu_name='decrement', tovar=tovar, page=page, promocode = promocode).pack()))
+                    callback_data=Menucallback(level=level, menu_name='decrement', tovar=tovar, page=page).pack()))
         keyboard.add(InlineKeyboardButton(text='+1',
-                    callback_data=Menucallback(level=level, menu_name='increment', tovar=tovar, page=page,price=price).pack()))
+                    callback_data=Menucallback(level=level, menu_name='increment', tovar=tovar, page=page).pack()))
 
         keyboard.adjust(*sizes)
 

@@ -41,19 +41,33 @@ async def orm_get_info_pages(session: AsyncSession):
 
 
 ############### Работа с корзиной ##############
-async def orm_add_to_cart(session: AsyncSession, product_name: str, user_id: int):
-    tovar = await session.scalar(select(Catalog).where(Catalog.name == product_name))
-    if not tovar or tovar.quantity <= 0:
+async def orm_add_to_cart(session: AsyncSession, prod_id: str, user_id: int):
+    tovar = await session.scalar(select(Catalog).where(Catalog.id == prod_id))
+    code = await session.scalar(select(AllCodes).where(AllCodes.catalog_id==prod_id, AllCodes.flag == 1))
+    id = code.id
+    if not tovar or tovar.quantity <= 0 or not code:
         return
 
-    cart = await session.scalar(select(Cart).where(Cart.user_id == user_id, Cart.catalog_id == tovar.id))
+    cart = await session.scalar(select(Cart).where(Cart.user_id == user_id, Cart.product_name == tovar.name))
     if cart:
         cart.quantity += 1
-
-    session.add(Cart(user_id=user_id, product_name=product_name, quantity = 1, price=tovar.price, catalog_id = tovar.id))
+        if code.id not in cart.codes:  
+            cart.codes.append(id)
+            await session.execute(
+                update(Cart)
+                .where(Cart.id == cart.id)
+                .values(codes=cart.codes)
+            )
     
+    else:
+        session.add(Cart(user_id=user_id, product_name=tovar.name, quantity = 1, price=tovar.price, codes = [code.id]))
+    tovar.quantity -=1
 
+    code.flag = 0
     await session.commit()
+
+
+
 
 
 async def orm_get_cart(session: AsyncSession, user_id: int):
@@ -66,26 +80,35 @@ async def orm_get_cart_on_code(session: AsyncSession, user_id: int, code:str):
     result = await session.execute(query)
     return result.scalar()
 
-async def orm_delete_from_cart(session: AsyncSession, user_id: int, product_name: str, id: str):
-    await session.execute(delete(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name,Cart.id == id))
-    await session.execute(update(Catalog).where(Catalog.name == product_name, Catalog.code == promo).values(in_cart=0, quantity=1))
+async def orm_delete_from_cart(session: AsyncSession, user_id: int, catalog_id):
+    await session.execute(delete(Cart).where(Cart.user_id == user_id, Cart.id == catalog_id))
+    await session.execute(update(Catalog).where(Catalog.id == catalog_id).values(quantity=Catalog.quantity+1))
     await session.commit()
 
-async def orm_decrement_cart_item(session: AsyncSession, user_id: int, product_name: str, promo: str):
-    tovar = await orm_get_promocode_by_name(session, product_name)
-    query = select(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name)
-    result = await session.execute(query)
-    cart = result.scalar()
-    if cart is None:
+async def orm_decrement_cart_item(session: AsyncSession, user_id: int, catalog_id):
+    tovar = await orm_get_promocode_by_name(session, catalog_id)
+    code = await session.scalar(select(AllCodes).where(AllCodes.catalog_id == catalog_id, AllCodes.flag == 0))
+    cart = await session.scalar(select(Cart).where(Cart.user_id == user_id, Cart.product_name == tovar.name))
+    if cart is None or code is None:
         return "cart none"
     if cart.quantity > 1:
-        query = update(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name).values(quantity=cart.quantity - 1)
-        tovar.quantity =1
-        await session.execute(query)
+        cart.quantity-=1
+
+        if code.id in cart.codes:
+            cart.codes.remove(code.id)
+
+        tovar.quantity +=1
+        code.flag = 1
+         
+        await session.execute(
+            update(Cart)
+            .where(Cart.id == cart.id)
+            .values(quantity=cart.quantity, codes=cart.codes)
+        )
         await session.commit()
         return True
     else:
-        await orm_delete_from_cart(session, user_id, product_name, promo)
+        await orm_delete_from_cart(session, user_id, catalog_id)
         await session.commit()
         return False
     
@@ -95,9 +118,11 @@ async def orm_add_code_to_catalog(session: AsyncSession, data: dict):
 
     name = data["name"]
     code = data["code"]
-    tovar = await orm_get_promocode_by_name(session, data["name"])
+    tovar = await session.scalar(select(Catalog).where(Catalog.name == name))
+    
 
     if tovar:
+        quant = await orm_count_promocodes(session,tovar.id)
         price = tovar.price
         new_code = AllCodes(
             catalog_id=tovar.id,  
@@ -105,6 +130,8 @@ async def orm_add_code_to_catalog(session: AsyncSession, data: dict):
             flag=1
         )
         session.add(new_code)
+        quant +=1 
+        tovar.quantity =quant
 
     else:
         price = data["price"]
@@ -113,8 +140,7 @@ async def orm_add_code_to_catalog(session: AsyncSession, data: dict):
             category=data["category"],
             price=data["price"],
             discount=data["discount"],
-            quantity = 1,
-            in_cart = 0
+            quantity =1
         )
         session.add(new_catalog_item)
         await session.flush()  
@@ -149,13 +175,18 @@ async def orm_get_promocode_by_category(session: AsyncSession, game_cat: str):
     return result.scalars().all()
 
 
-async def orm_get_promocode_by_name(session: AsyncSession, promocode: str ):
-    query = select(Catalog).where(Catalog.name == promocode)
+async def orm_get_promocode_by_name(session: AsyncSession, catalog_id: str ):
+    query = select(Catalog).where(Catalog.id == catalog_id)
     result = await session.execute(query)
     return result.scalars().first()
 
-async def orm_get_available_promocode(session: AsyncSession, promocode: str):
-    query = select(Catalog).where(Catalog.name == promocode, Catalog.quantity == 1, Catalog.in_cart == 0)
+async def orm_get_promocode_by_name1(session: AsyncSession, name: str ):
+    query = select(Catalog).where(Catalog.name==name)
+    result = await session.execute(query)
+    return result.scalars().first()
+
+async def orm_get_available_promocode(session: AsyncSession, cat_id: str):
+    query = select(Catalog).where(Catalog.id == cat_id)
     result = await session.execute(query)
     return result.scalars().first()
     
