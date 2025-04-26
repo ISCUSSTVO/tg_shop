@@ -1,5 +1,5 @@
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import Integer, String, DateTime,  Text, func
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy import ForeignKey, Integer, SmallInteger, String, DateTime,  Text, func
 
 class Base(DeclarativeBase):
     created: Mapped[DateTime] = mapped_column(DateTime, default = func.now())
@@ -26,17 +26,32 @@ class Spam(Base):
     smska: Mapped[str] = mapped_column(String)
 ##################таблица аккаунтов################################################################aa
 class Catalog(Base):
-    __tablename__ = 'promocodes_cat'
+    __tablename__ = 'catalog'
 
-    id: Mapped[int] = mapped_column(primary_key = True, autoincrement = True)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(15))
-    promocode: Mapped[str] = mapped_column(String(70), unique=True, nullable=False)
     category: Mapped[str] = mapped_column(String(30), nullable=False)
-    price: Mapped[int]  = mapped_column(Integer)
+    price: Mapped[int] = mapped_column(Integer)
     discount: Mapped[int] = mapped_column(Integer)
-    quantity: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    in_cart: Mapped[bool] = mapped_column(Integer, default=0, nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    in_cart: Mapped[bool] = mapped_column(Integer, default=1, nullable=False)
 
+    # Связь с таблицей AllCodes
+    codes: Mapped[list["AllCodes"]] = relationship(
+        "AllCodes", back_populates="catalog"
+    )
+
+#################################Таблица всех кодов############################################################
+class AllCodes(Base):
+    __tablename__ = 'all_codes'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    catalog_id: Mapped[int] = mapped_column(ForeignKey("catalog.id"), nullable=False)  # Связь с Catalog
+    code: Mapped[str] = mapped_column(String(70), unique=True, nullable=False)
+    flag: Mapped[int] = mapped_column(SmallInteger(), default=0, nullable=False)
+
+    # Связь с таблицей Catalog
+    catalog: Mapped["Catalog"] = relationship("Catalog", back_populates="codes")
 
 ##################таблица банеры ################################################################
 class Banner(Base):
@@ -73,4 +88,9 @@ class Cart(Base):
     product_name: Mapped[str] = mapped_column(String(15), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     price: Mapped[int] = mapped_column(Integer, nullable=False)
-    promo: Mapped[str] = mapped_column(String(70), unique=True, nullable=False)
+    catalog_id: Mapped[int] = mapped_column(Integer, nullable= False)
+
+
+
+
+    

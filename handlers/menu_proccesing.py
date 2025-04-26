@@ -105,7 +105,7 @@ async def payment(session: AsyncSession, tovar: str, user_id: int):
 
     # Применяем скидку продукта
     product_price = product.price - (product.price * product.discount // 100)
-    quant = await orm_count_promocodes(session,product.name)
+    quant = await orm_count_promocodes(session,product.id)
     # Получаем активный промокод пользователя
     user_promocode_usage = await orm_get_user_promocode_usage(session, user_id)
     if user_promocode_usage is not None:

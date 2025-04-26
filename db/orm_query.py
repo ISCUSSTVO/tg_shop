@@ -1,6 +1,6 @@
 from sqlalchemy import delete, distinct, select, update , func
 from sqlalchemy.ext.asyncio import AsyncSession
-from db.models import Catalog, Admins, Banner,PromocodeUsage, Promokodes, Spam, Users, Cart
+from db.models import AllCodes, Catalog, Admins, Banner,PromocodeUsage, Promokodes, Spam, Users, Cart
 
 ############### Работа с баннерами (информационными страницами) ###############
 
@@ -41,17 +41,17 @@ async def orm_get_info_pages(session: AsyncSession):
 
 
 ############### Работа с корзиной ##############
-async def orm_add_to_cart(session: AsyncSession, product_name: str, user_id: int, price: int,quantity: int, in_cart: int):
-    tovar = await session.scalar(select(Catalog).where(Catalog.name == product_name,Catalog.quantity == quantity, Catalog.in_cart == in_cart))
+async def orm_add_to_cart(session: AsyncSession, product_name: str, user_id: int):
+    tovar = await session.scalar(select(Catalog).where(Catalog.name == product_name))
     if not tovar or tovar.quantity <= 0:
         return
 
-    #cart = await session.scalar(select(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name))
-    #if cart:
-    #    cart.quantity += 1
-    session.add(Cart(user_id=user_id, product_name=product_name, quantity = 1, price=tovar.price, promo = tovar.promocode))
-    tovar.quantity -= 1
-    tovar.in_cart = 1
+    cart = await session.scalar(select(Cart).where(Cart.user_id == user_id, Cart.catalog_id == tovar.id))
+    if cart:
+        cart.quantity += 1
+
+    session.add(Cart(user_id=user_id, product_name=product_name, quantity = 1, price=tovar.price, catalog_id = tovar.id))
+    
 
     await session.commit()
 
@@ -66,9 +66,9 @@ async def orm_get_cart_on_code(session: AsyncSession, user_id: int, code:str):
     result = await session.execute(query)
     return result.scalar()
 
-async def orm_delete_from_cart(session: AsyncSession, user_id: int, product_name: str, promo: str):
-    await session.execute(delete(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name,Cart.promo == promo))
-    await session.execute(update(Catalog).where(Catalog.name == product_name, Catalog.promocode ==promo).values(in_cart=0, quantity=1))
+async def orm_delete_from_cart(session: AsyncSession, user_id: int, product_name: str, id: str):
+    await session.execute(delete(Cart).where(Cart.user_id == user_id, Cart.product_name == product_name,Cart.id == id))
+    await session.execute(update(Catalog).where(Catalog.name == product_name, Catalog.code == promo).values(in_cart=0, quantity=1))
     await session.commit()
 
 async def orm_decrement_cart_item(session: AsyncSession, user_id: int, product_name: str, promo: str):
@@ -91,36 +91,45 @@ async def orm_decrement_cart_item(session: AsyncSession, user_id: int, product_n
     
 
 ############### Работа с каталогами ##############
-async def orm_add_promocode_to_catalog(session: AsyncSession, data: dict):
-    tovar = await orm_get_promocode_by_name(session, data["name"])
+async def orm_add_code_to_catalog(session: AsyncSession, data: dict):
+
     name = data["name"]
-    promo = data["promocode"] 
-    if tovar is not None:
+    code = data["code"]
+    tovar = await orm_get_promocode_by_name(session, data["name"])
+
+    if tovar:
         price = tovar.price
-        obj = Catalog(
-            name=name,
-            category=tovar.category,
-            promocode= promo,
-            price=tovar.price,
-            discount=tovar.discount,
-            quantity=1
+        new_code = AllCodes(
+            catalog_id=tovar.id,  
+            code=code,
+            flag=1
         )
-        session.add(obj)
+        session.add(new_code)
+
     else:
         price = data["price"]
-        obj = Catalog(
+        new_catalog_item = Catalog(
             name=data["name"],
             category=data["category"],
-            promocode=data["promocode"],
             price=data["price"],
             discount=data["discount"],
-            quantity=1
+            quantity = 1,
+            in_cart = 0
         )
-        session.add(obj) 
+        session.add(new_catalog_item)
+        await session.flush()  
+
+        new_code = AllCodes(
+            catalog_id=new_catalog_item.id,  
+            code=code,
+            flag=1
+        )
+        session.add(new_code)
 
     await session.commit()
-    return name,promo,price
+    return price
 
+    
 
 async def orm_get_all_catalog_items(session: AsyncSession):
     query = select(Catalog)
@@ -182,11 +191,11 @@ async def orm_update_catalog_item(
         update(Catalog).where(Catalog.name == promocode).values({field_name: new_value})
     )
     result = await session.execute(query)
-    return result
+    session.commit()
 
-async def orm_count_promocodes(session: AsyncSession, promocode_name: str):
+async def orm_count_promocodes(session: AsyncSession, cat_id: str):
     query = (
-        select(func.count()).select_from(Catalog).where(Catalog.name == promocode_name, Catalog.quantity == 1)
+        select(func.count()).select_from(AllCodes).where(AllCodes.catalog_id == cat_id, AllCodes.flag ==1)
     )
     result = await session.execute(query)
     return result.scalar()
@@ -224,7 +233,6 @@ async def orm_get_discount_promocode_by_promocode(session: AsyncSession, promo: 
 async def orm_add_discount_promocode(session: AsyncSession, promocode: str, discount: int, usage: int):
     session.add(Promokodes(promocode=promocode, discount=discount, usage=usage))
     await session.commit()
-    return promocode, discount, usage
 
 async def orm_use_promocode(session: AsyncSession, user_id: int, promo: str):
     session.add(PromocodeUsage(user_id=user_id, promocode=promo))
@@ -285,9 +293,9 @@ async def orm_get_all_spam_messages(session: AsyncSession):
 
 
 async def orm_delete_spam_message(session: AsyncSession, sms: str):
-    query = delete(Spam).where(Spam.smska == sms)
-    result = await session.execute(query)
-    return result
+    await session.execute(delete(Spam).where(Spam.smska == sms))
+    await session.commit()
+
 
 
 async def orm_add_spam_message(session: AsyncSession, message: str):
