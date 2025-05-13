@@ -44,10 +44,10 @@ async def orm_get_info_pages(session: AsyncSession):
 async def orm_add_to_cart(session: AsyncSession, prod_id: str, user_id: int):
     tovar = await session.scalar(select(Catalog).where(Catalog.id == prod_id))
     code = await session.scalar(select(AllCodes).where(AllCodes.catalog_id==prod_id, AllCodes.flag == 1))
-    id = code.id
+    
     if not tovar or tovar.quantity <= 0 or not code:
-        return
-
+        return ('qwe')
+    id = code.id
     cart = await session.scalar(select(Cart).where(Cart.user_id == user_id, Cart.product_name == tovar.name))
     if cart:
         cart.quantity += 1
@@ -80,37 +80,49 @@ async def orm_get_cart_on_code(session: AsyncSession, user_id: int, code:str):
     result = await session.execute(query)
     return result.scalar()
 
-async def orm_delete_from_cart(session: AsyncSession, user_id: int, catalog_id):
-    await session.execute(delete(Cart).where(Cart.user_id == user_id, Cart.id == catalog_id))
-    await session.execute(update(Catalog).where(Catalog.id == catalog_id).values(quantity=Catalog.quantity+1))
+async def orm_delete_from_cart(session: AsyncSession, user_id: int, cart_id: int):
+    cart = await session.scalar(select(Cart).where(Cart.user_id == user_id, Cart.id == cart_id))
+    for code_id in cart.codes:
+        code = await session.scalar(select(AllCodes).where(AllCodes.id == code_id))
+        if code:
+            code.flag = 1
+
+    await session.execute(update(Catalog).where(Catalog.name == cart.product_name).values(quantity=Catalog.quantity + cart.quantity))
+
+    await session.execute(delete(Cart).where(Cart.id == cart_id))
+
     await session.commit()
 
 async def orm_decrement_cart_item(session: AsyncSession, user_id: int, catalog_id):
+    q = 0
     tovar = await orm_get_promocode_by_name(session, catalog_id)
-    code = await session.scalar(select(AllCodes).where(AllCodes.catalog_id == catalog_id, AllCodes.flag == 0))
     cart = await session.scalar(select(Cart).where(Cart.user_id == user_id, Cart.product_name == tovar.name))
+    code = await session.scalar(select(AllCodes).where(AllCodes.id.in_(cart.codes)))
     if cart is None or code is None:
         return "cart none"
+    
     if cart.quantity > 1:
+        q = 1
+        cart.codes.remove(code.id)
+        print ("qweasdqweasd",code.id)
+        code.flag = 1
         cart.quantity-=1
 
-        if code.id in cart.codes:
-            cart.codes.remove(code.id)
-
         tovar.quantity +=1
-        code.flag = 1
+        
          
         await session.execute(
             update(Cart)
             .where(Cart.id == cart.id)
             .values(quantity=cart.quantity, codes=cart.codes)
         )
-        await session.commit()
-        return True
+
     else:
         await orm_delete_from_cart(session, user_id, catalog_id)
-        await session.commit()
-        return False
+        code.flag = 1
+    await session.commit()
+    return True if q == 1 else False
+
     
 
 ############### Работа с каталогами ##############

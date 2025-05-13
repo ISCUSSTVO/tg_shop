@@ -1,6 +1,6 @@
 from math import prod
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InputMediaPhoto
+from aiogram.types import CallbackQuery, InputMediaPhoto
 from sqlalchemy.ext.asyncio import AsyncSession
 from utils.paginator import Paginator
 from db.orm_query import (
@@ -10,7 +10,7 @@ from db.orm_query import (
     orm_get_cart_on_code,
     orm_delete_from_cart,
     orm_get_banner,
-    orm_get_catalog_categories,
+    orm_get_catalog_categories,Ф
     orm_get_next_available_promocode,
     orm_get_promocode_by_category,
     orm_get_promocode_by_name,
@@ -56,7 +56,7 @@ async def category(session):
 
     kbds = get_callback_btns(
         btns=btns,
-        sizes=(2,1))
+        sizes=(2,))
     return image, kbds
 
 
@@ -71,7 +71,7 @@ async def promocodes_catalog(session, level,game_cat):
     if filtered_promocodes != []:
         image = InputMediaPhoto(media=banner.image, caption="Товары👌:")
         btns = {
-            f"{promocode.name}": f"show_promocode_{promocode.id}"
+            f"{promocode.name}": f"show_code_{promocode.id}"
             for promocode in filtered_promocodes
         }
         btns["назад"] = Menucallback(level=level - 1, menu_name="catalog").pack()
@@ -124,17 +124,21 @@ async def payment(session: AsyncSession, tovar: str, user_id: int):
     return image, kbds
 
 
-async def cart(session, level, page: int, user_id: int, menu_name,tovar:str):
+async def cart(session:AsyncSession, level, page: int, user_id: int, menu_name,tovar:str):
     if menu_name == "delete":
         await orm_delete_from_cart(session, user_id, tovar)
         if page > 1:
             page -= 1
     elif menu_name == "decrement":
         is_cart = await orm_decrement_cart_item(session, user_id, tovar)
+        
         if page > 1 and not is_cart:
             page -= 1
     elif menu_name == "increment":
-        await orm_add_to_cart(session, tovar, user_id)
+        q = await orm_add_to_cart(session, tovar, user_id)
+        if q ==("qwe"):
+            image = ("qwe")
+            return image
     
     banner = await orm_get_banner(session, "cart")
     carts = await orm_get_cart(session, user_id)
@@ -173,7 +177,7 @@ async def cart(session, level, page: int, user_id: int, menu_name,tovar:str):
             page=page,
             pagination_btns=pagination_btns,
             tovar=current_cart.id,
-            #price=current_cart.price,
+
         )
     return image, kbds
 
@@ -188,6 +192,7 @@ async def get_menu_content(
     game_cat: str | None = None,
     state: FSMContext | None = None,
     promo: str | None = None,
+
       
 
 ):

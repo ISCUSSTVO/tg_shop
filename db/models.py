@@ -45,12 +45,12 @@ class AllCodes(Base):
     __tablename__ = 'all_codes'
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    catalog_id: Mapped[int] = mapped_column(ForeignKey("catalog.id"), nullable=False)  # Связь с Catalog
+    catalog_id: Mapped[int] = mapped_column(ForeignKey("catalog.id", ondelete="CASCADE"), nullable=False)  # Связь с Catalog
     code: Mapped[str] = mapped_column(String(70), unique=True, nullable=False)
     flag: Mapped[int] = mapped_column(SmallInteger(), default=0, nullable=False)
 
     # Связь с таблицей Catalog
-    catalog: Mapped["Catalog"] = relationship("Catalog", back_populates="codes")
+    catalog: Mapped["Catalog"] = relationship("Catalog", back_populates="codes",)
 
 ##################таблица банеры ################################################################
 class Banner(Base):

@@ -1,7 +1,7 @@
 import asyncio
 import json
 from aiogram import Bot, types, Router, F
-from aiogram.types import InputMediaPhoto, LabeledPrice
+from aiogram.types import CallbackQuery, InputMediaPhoto, LabeledPrice
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import CommandStart
@@ -11,7 +11,6 @@ from db.orm_query import (
     orm_add_user,
     orm_get_promocode_by_name,
     orm_get_discount_promocode_by_promocode,
-    orm_get_promocode_by_name_with_quantity_and_cart_status,
     orm_get_user_promocode_usage,
     orm_get_user_by_id,
     orm_get_banner,
@@ -72,7 +71,7 @@ async def menu(message: types.Message | types.CallbackQuery, session: AsyncSessi
 
 @user_router.callback_query(Menucallback.filter())
 async def user_menu(
-    callback: types.CallbackQuery, callback_data: Menucallback, session: AsyncSession
+    callback: CallbackQuery, callback_data: Menucallback, session: AsyncSession
 ):
 
     result = await get_menu_content(
@@ -88,19 +87,19 @@ async def user_menu(
         await callback.answer("Не удалось получить данные.", show_alert=True)
         return
 
-    (
-        media,
-        reply_markup,
-    ) = result
-    await callback.message.edit_media(media=media, reply_markup=reply_markup)
-    await callback.answer()
+    
+    media,reply_markup,= result
+    if media == ("qwe"):
+        await callback.answer("Товара нет в наличии")
+    else:
+        await callback.message.edit_media(media=media, reply_markup=reply_markup)
+        await callback.answer()
 
 
 @user_router.callback_query(F.data.startswith("add_cart_"))
 async def add_cart(callback_query: types.CallbackQuery, session: AsyncSession):
     data = callback_query.data.split("_")
     prod_id = data[-2]
-    prod_name = data[-1]
     tovar = await orm_get_promocode_by_name(session,prod_id)
     await orm_add_to_cart(session, prod_id, callback_query.from_user.id)
     if not tovar:
@@ -123,7 +122,7 @@ async def process_show_cats(callback_query: types.CallbackQuery, session: AsyncS
     await callback_query.answer()
 
 
-@user_router.callback_query(F.data.startswith("show_promocode_"))
+@user_router.callback_query(F.data.startswith("show_code_"))
 async def process_show_promocodes(
     callback_query: types.CallbackQuery, session: AsyncSession
 ):
