@@ -80,6 +80,11 @@ async def orm_get_cart_on_code(session: AsyncSession, user_id: int, code:str):
     result = await session.execute(query)
     return result.scalar()
 
+async def orm_get_cart_on_id(session: AsyncSession, user_id: int, cart_id:str):
+    query = select(Cart).where(Cart.user_id == user_id, Cart.id == cart_id)
+    result = await session.execute(query)
+    return result.scalar()
+
 async def orm_delete_from_cart(session: AsyncSession, user_id: int, cart_id: int):
     cart = await session.scalar(select(Cart).where(Cart.user_id == user_id, Cart.id == cart_id))
     for code_id in cart.codes:
@@ -123,7 +128,11 @@ async def orm_decrement_cart_item(session: AsyncSession, user_id: int, catalog_i
     await session.commit()
     return True if q == 1 else False
 
-    
+
+async def orm_get_code_on_id(session: AsyncSession, code_id):
+    query = select(AllCodes).where(AllCodes.id == code_id)
+    result = await session.execute(query)
+    return result.scalar()
 
 ############### Работа с каталогами ##############
 async def orm_add_code_to_catalog(session: AsyncSession, data: dict):

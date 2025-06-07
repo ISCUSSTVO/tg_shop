@@ -10,7 +10,7 @@ from db.orm_query import (
     orm_get_cart_on_code,
     orm_delete_from_cart,
     orm_get_banner,
-    orm_get_catalog_categories,Ф
+    orm_get_catalog_categories,
     orm_get_next_available_promocode,
     orm_get_promocode_by_category,
     orm_get_promocode_by_name,
@@ -112,7 +112,7 @@ async def payment(session: AsyncSession, tovar: str, user_id: int):
     btns = {
         "купить": f"select_{promocodes.id}",
         "Есть промокод?": "promo",
-        "Добавить в корзину": f'add_cart_{promocodes.id}_{promocodes.name}',
+        "Добавить в корзину": f'add_cart_{promocodes.id}',
         "Назад": f"show_category_{promocodes.category}"
     }
 

@@ -15,6 +15,8 @@ from db.orm_query import (
     orm_get_user_by_id,
     orm_get_banner,
     orm_use_promocode,
+    orm_get_cart_on_id,
+    orm_get_code_on_id,
 )
 
 from handlers.menu_proccesing import (
@@ -99,7 +101,7 @@ async def user_menu(
 @user_router.callback_query(F.data.startswith("add_cart_"))
 async def add_cart(callback_query: types.CallbackQuery, session: AsyncSession):
     data = callback_query.data.split("_")
-    prod_id = data[-2]
+    prod_id = data[-1]
     tovar = await orm_get_promocode_by_name(session,prod_id)
     await orm_add_to_cart(session, prod_id, callback_query.from_user.id)
     if not tovar:
@@ -136,7 +138,12 @@ async def process_show_promocodes(
 @user_router.callback_query(F.data.startswith("select_"))
 async def purchase(callback: types.CallbackQuery, session: AsyncSession):
     catalog_id = callback.data.split("_")[-1]
-    promocode = await orm_get_promocode_by_name(session, catalog_id)
+    cart = await orm_get_cart_on_id(session, callback.from_user.id, catalog_id)
+    for i in cart.codes:
+        w = i 
+        print ('aqwjkeoiqwe',w)
+    code = await orm_get_code_on_id(session, w)
+    promocode = await orm_get_promocode_by_name(session, code.catalog_id)
     if promocode.discount != 0:
         price = promocode.price - promocode.price * promocode.discount // 100
     else:
@@ -154,10 +161,10 @@ async def purchase(callback: types.CallbackQuery, session: AsyncSession):
 
     try:
         await callback.message.answer_invoice(
-            title="🎮 Покупка промокода",
+            title="🎮 Покупка",
             description=promocode.name,
-            payload=payload,
-            provider_token="381764678:TEST:93111",
+            payload="wqe",
+            provider_token="390540012:LIVE:60574",
             currency="RUB",
             prices=prices,
             photo_url=banner.image ,
